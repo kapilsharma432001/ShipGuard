@@ -26,6 +26,14 @@ environment files yourself.
 
 ## Run
 
+Create the synthetic demo repository:
+
+```bash
+python scripts/create_demo_repo.py
+```
+
+Then analyze it:
+
 ```bash
 python -m shipguard analyze --repo ./sample-app
 ```
