@@ -37,6 +37,14 @@ def analyze(
     ),
 ) -> None:
     """Analyze release risk for a repository."""
+    if not repo.exists():
+        typer.secho(
+            f"Repository path does not exist: {repo}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
     typer.echo(f"Analyzing repository: {repo}")
 
     try:

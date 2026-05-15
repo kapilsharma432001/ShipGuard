@@ -65,8 +65,9 @@ class LLMClient:
                             "Return only valid JSON matching this schema: "
                             "{"
                             '"release_readiness_score": integer 0-100, '
-                            '"decision": "GO" | "NO_GO" | "GO_WITH_CAUTION", '
-                            '"risk_level": "low" | "medium" | "high" | "critical", '
+                            '"decision": "ALLOW_RELEASE" | "REVIEW_REQUIRED" | '
+                            '"BLOCK_RELEASE", '
+                            '"risk_level": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL", '
                             '"what_may_break": array of strings, '
                             '"what_ci_may_miss": array of strings'
                             "}"

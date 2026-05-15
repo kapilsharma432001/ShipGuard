@@ -4,16 +4,16 @@ from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
 
 
 class Decision(StrEnum):
-    GO = "GO"
-    NO_GO = "NO_GO"
-    GO_WITH_CAUTION = "GO_WITH_CAUTION"
+    ALLOW_RELEASE = "ALLOW_RELEASE"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    BLOCK_RELEASE = "BLOCK_RELEASE"
 
 
 class RiskLevel(StrEnum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 
 class LLMConfig(BaseModel):
