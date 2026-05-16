@@ -85,10 +85,14 @@ python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBE
 ```
 
 ShipGuard fetches PR metadata, changed file names, and the PR diff from GitHub.
-The same diff size limit is available:
+For PR analysis, ShipGuard always sends full PR metadata and the complete
+changed file list. File diffs are packed by release-risk priority so migrations,
+API/schema changes, config/deployment changes, auth/security changes, and
+dependency files are considered before lower-risk files. The default PR diff
+context budget is 120,000 characters:
 
 ```bash
-python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER --max-diff-chars 30000
+python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER --max-diff-chars 120000
 ```
 
 The CLI prints:

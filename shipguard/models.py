@@ -74,6 +74,10 @@ class PRChangeSummary(BaseModel):
     deletions: int
     changed_files: list[str]
     changed_file_extensions: list[str]
+    included_files: list[str]
+    omitted_files: list[str]
+    partially_included_files: list[str]
+    diff_strategy: str
     diff: str
     diff_truncated: bool
     max_diff_chars: int
