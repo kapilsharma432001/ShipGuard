@@ -53,7 +53,7 @@ class LLMClient:
             ) from exc
         return cls(config)
 
-    def analyze_release(self, release_description: str) -> ReleaseRiskReport:
+    def analyze_release(self, release_context: str) -> ReleaseRiskReport:
         try:
             response = self._client.chat.completions.create(
                 model=self._config.model,
@@ -62,6 +62,11 @@ class LLMClient:
                         "role": "system",
                         "content": (
                             "You are ShipGuard, an AI release risk reasoner. "
+                            "Analyze release risk from the supplied repository "
+                            "metadata and git diff. Focus on backward "
+                            "compatibility, database migration safety, config "
+                            "drift, business logic regressions, rollback risk, "
+                            "and what CI may miss. "
                             "Return only valid JSON matching this schema: "
                             "{"
                             '"release_readiness_score": integer 0-100, '
@@ -73,7 +78,7 @@ class LLMClient:
                             "}"
                         ),
                     },
-                    {"role": "user", "content": release_description},
+                    {"role": "user", "content": release_context},
                 ],
                 temperature=0,
             )

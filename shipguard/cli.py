@@ -2,6 +2,11 @@ from pathlib import Path
 
 import typer
 
+from shipguard.git_analyzer import (
+    GitAnalyzerError,
+    collect_git_changes,
+    format_release_prompt,
+)
 from shipguard.llm_client import (
     LLMClient,
     ShipGuardConfigError,
@@ -11,12 +16,6 @@ from shipguard.llm_client import (
 app = typer.Typer(
     help="AI Release Risk Reasoner.",
     no_args_is_help=True,
-)
-
-
-TEST_RELEASE_PROMPT = (
-    "Analyze this fake release: API enum changed from Denied to DENIED. "
-    "DB migration adds NOT NULL column without default. What can break?"
 )
 
 
@@ -35,6 +34,12 @@ def analyze(
         resolve_path=True,
         help="Path to the repository to analyze.",
     ),
+    max_diff_chars: int = typer.Option(
+        30_000,
+        "--max-diff-chars",
+        min=1,
+        help="Maximum git diff characters to send to the LLM.",
+    ),
 ) -> None:
     """Analyze release risk for a repository."""
     if not repo.exists():
@@ -48,8 +53,12 @@ def analyze(
     typer.echo(f"Analyzing repository: {repo}")
 
     try:
+        git_summary = collect_git_changes(repo, max_diff_chars=max_diff_chars)
         client = LLMClient.from_env()
-        report = client.analyze_release(TEST_RELEASE_PROMPT)
+        report = client.analyze_release(format_release_prompt(git_summary))
+    except GitAnalyzerError as exc:
+        typer.secho(f"Git error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from exc
     except ShipGuardConfigError as exc:
         typer.secho(f"Configuration error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=2) from exc
