@@ -103,6 +103,46 @@ class LLMClient:
                 "stronger instruction following or inspect the gateway response."
             ) from exc
 
+    def summarize_project_context(self, project_context: str) -> dict[str, Any]:
+        try:
+            response = self._client.chat.completions.create(
+                model=self._config.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You summarize repository context for ShipGuard. "
+                            "Return only valid JSON matching this schema: "
+                            "{"
+                            '"architecture_summary": string, '
+                            '"important_components": array of strings, '
+                            '"known_api_surface": array of strings, '
+                            '"known_data_surface": array of strings, '
+                            '"known_config_surface": array of strings, '
+                            '"known_release_risks": array of strings, '
+                            '"file_summaries": array of objects with '
+                            '"path" and "summary" strings'
+                            "}"
+                        ),
+                    },
+                    {"role": "user", "content": project_context},
+                ],
+                temperature=0,
+            )
+        except OpenAIError as exc:
+            raise ShipGuardLLMError("LLM project context summary request failed.") from exc
+
+        content = response.choices[0].message.content if response.choices else None
+        if not content:
+            raise ShipGuardLLMError("LLM returned an empty project context summary.")
+
+        try:
+            return _load_json_object(content)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            raise ShipGuardLLMError(
+                "LLM project context summary was not valid JSON."
+            ) from exc
+
 
 def _load_json_object(content: str) -> dict[str, Any]:
     cleaned = content.strip()

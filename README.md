@@ -95,6 +95,44 @@ context budget is 120,000 characters:
 python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER --max-diff-chars 120000
 ```
 
+By default, PR analysis also uses project memory. ShipGuard fetches the PR base
+SHA repository tree from GitHub, creates an inventory entry for every discovered
+file, classifies files with generic repository rules, fetches eligible
+text/code/config content up to the size limit, extracts deterministic signals,
+and optionally asks the configured LLM to summarize compact file contexts in
+batches. Memory is stored locally under `.shipguard/memory/<owner>_<repo>/`.
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --use-memory \
+  --show-memory-summary
+```
+
+Memory files:
+
+- `repo_inventory.json`
+- `project_memory.json`
+- `files_index.json`
+- `memory_build_report.json`
+- `release_history.jsonl`
+
+The inventory includes every discovered repository file. The file index includes
+the analyzed text/code/config files with extracted signals such as env vars, API
+routes, DB tables/entities, imports, functions/classes, migration operations,
+dependencies, security signals, and test framework hints. If GitHub reports a
+truncated recursive tree, ShipGuard records the warning and falls back to
+non-recursive subtree traversal when possible.
+
+Useful flags:
+
+- `--no-memory` skips project memory.
+- `--rebuild-memory` rebuilds memory from the PR base SHA.
+- `--memory-dir .shipguard/memory` changes the local memory directory.
+- `--show-memory-summary` prints total discovered files, fetched files, skipped
+  files, tree truncation status, summary source, known category counts, and the
+  memory directory.
+
 The CLI prints:
 
 - Release Readiness Score
