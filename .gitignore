@@ -1,6 +1,7 @@
 .DS_Store
 sample-app/
 .shipguard/memory/
+.shipguard/reports/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
