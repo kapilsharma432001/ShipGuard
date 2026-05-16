@@ -95,6 +95,31 @@ context budget is 120,000 characters:
 python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER --max-diff-chars 120000
 ```
 
+By default, PR analysis also uses project memory. ShipGuard indexes selected
+base-branch files from GitHub, extracts deterministic context, optionally asks
+the configured LLM for a project summary, and stores memory locally under
+`.shipguard/memory/<owner>_<repo>/`.
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --use-memory \
+  --show-memory-summary
+```
+
+Memory files:
+
+- `project_memory.json`
+- `files_index.json`
+- `release_history.jsonl`
+
+Useful flags:
+
+- `--no-memory` skips project memory.
+- `--rebuild-memory` rebuilds memory from the PR base SHA.
+- `--memory-dir .shipguard/memory` changes the local memory directory.
+- `--show-memory-summary` prints a short memory summary.
+
 The CLI prints:
 
 - Release Readiness Score

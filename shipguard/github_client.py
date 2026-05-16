@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 from pathlib import Path
@@ -96,6 +97,63 @@ class GitHubClient:
             max_diff_chars=max_diff_chars,
         )
 
+    def fetch_repository_metadata(self, owner: str, repo: str) -> dict[str, Any]:
+        metadata = self._get_json(_repository_path(owner, repo))
+        if not isinstance(metadata, dict):
+            raise GitHubClientError("GitHub returned an unexpected repository response.")
+        return metadata
+
+    def fetch_recursive_tree(
+        self,
+        owner: str,
+        repo: str,
+        ref: str,
+    ) -> list[dict[str, Any]]:
+        tree = self._get_json(
+            f"{_repository_path(owner, repo)}/git/trees/{quote(ref, safe='')}"
+            "?recursive=1"
+        )
+        if not isinstance(tree, dict) or not isinstance(tree.get("tree"), list):
+            raise GitHubClientError(
+                "GitHub returned an unexpected repository tree response."
+            )
+
+        return [item for item in tree["tree"] if isinstance(item, dict)]
+
+    def fetch_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        ref: str,
+        max_bytes: int = 200_000,
+    ) -> str | None:
+        content_path = (
+            f"{_repository_path(owner, repo)}/contents/{quote(path, safe='/')}"
+            f"?ref={quote(ref, safe='')}"
+        )
+        payload = self._get_json(content_path)
+        if not isinstance(payload, dict):
+            return None
+
+        if int(payload.get("size") or 0) > max_bytes:
+            return None
+        if payload.get("encoding") != "base64" or not isinstance(
+            payload.get("content"),
+            str,
+        ):
+            return None
+
+        try:
+            raw = base64.b64decode(payload["content"].replace("\n", ""))
+        except ValueError:
+            return None
+
+        if len(raw) > max_bytes or _looks_binary(raw):
+            return None
+
+        return raw.decode("utf-8", errors="replace")
+
     def _get_changed_files(self, pr: GitHubPRRef) -> list[dict[str, Any]]:
         files: list[dict[str, Any]] = []
         page = 1
@@ -141,7 +199,7 @@ class GitHubClient:
             raise GitHubClientError(f"GitHub request failed: {exc.reason}") from exc
 
 
-def format_pr_prompt(summary: PRChangeSummary) -> str:
+def format_pr_prompt(summary: PRChangeSummary, memory_context: str | None = None) -> str:
     changed_files = "\n".join(f"- {path}" for path in summary.changed_files) or "- None"
     extensions = ", ".join(summary.changed_file_extensions) or "none"
     body = summary.body or "(no PR description)"
@@ -155,7 +213,20 @@ def format_pr_prompt(summary: PRChangeSummary) -> str:
         else "Every changed file diff was included in full."
     )
 
+    if memory_context:
+        memory_instruction = (
+            "Do not review this PR in isolation. Use project memory to identify "
+            "compatibility, migration, config, rollback, and testing risks."
+        )
+        memory_section = memory_context
+    else:
+        memory_instruction = "Project memory was disabled for this analysis."
+        memory_section = "Project memory: not used for this analysis."
+
     return f"""Analyze this GitHub pull request release risk based on the metadata and diff below.
+{memory_instruction}
+
+{memory_section}
 
 PR URL: {summary.pr_url}
 Repository: {summary.owner}/{summary.repo}
@@ -201,9 +272,11 @@ PR diff context:
 
 
 def _pull_request_path(pr: GitHubPRRef) -> str:
-    owner = quote(pr.owner, safe="")
-    repo = quote(pr.repo, safe="")
-    return f"/repos/{owner}/{repo}/pulls/{pr.number}"
+    return f"{_repository_path(pr.owner, pr.repo)}/pulls/{pr.number}"
+
+
+def _repository_path(owner: str, repo: str) -> str:
+    return f"/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
 
 
 def _nested_str(data: dict[str, Any], section: str, key: str) -> str:
@@ -220,6 +293,10 @@ def _optional_str(value: Any) -> str | None:
 def _file_extensions(paths: list[str]) -> list[str]:
     extensions = {Path(path).suffix.lower() for path in paths if Path(path).suffix}
     return sorted(extensions)
+
+
+def _looks_binary(content: bytes) -> bool:
+    return b"\x00" in content[:1024]
 
 
 def _pack_pr_diff(

@@ -81,3 +81,45 @@ class PRChangeSummary(BaseModel):
     diff: str
     diff_truncated: bool
     max_diff_chars: int
+
+
+class ProjectMemory(BaseModel):
+    owner: str
+    repo: str
+    default_branch: str | None = None
+    last_indexed_base_sha: str | None = None
+    last_analyzed_head_sha: str | None = None
+    architecture_summary: str | None = None
+    known_api_files: list[str] = Field(default_factory=list)
+    known_model_files: list[str] = Field(default_factory=list)
+    known_migration_files: list[str] = Field(default_factory=list)
+    known_config_files: list[str] = Field(default_factory=list)
+    known_test_files: list[str] = Field(default_factory=list)
+    known_dependency_files: list[str] = Field(default_factory=list)
+    known_env_vars: list[str] = Field(default_factory=list)
+    known_db_tables: list[str] = Field(default_factory=list)
+    known_release_risks: list[str] = Field(default_factory=list)
+    last_updated_at: str
+
+
+class ProjectFileContext(BaseModel):
+    path: str
+    category: str
+    summary: str
+    important_symbols: list[str] = Field(default_factory=list)
+    env_vars: list[str] = Field(default_factory=list)
+    db_tables: list[str] = Field(default_factory=list)
+    api_routes: list[str] = Field(default_factory=list)
+
+
+class ReleaseHistoryItem(BaseModel):
+    pr_url: str
+    pr_number: int
+    title: str
+    head_sha: str
+    generated_at: str
+    final_score: int | None = None
+    decision: str | None = None
+    risk_level: str | None = None
+    top_risks: list[str] = Field(default_factory=list)
+    changed_files: list[str] = Field(default_factory=list)
