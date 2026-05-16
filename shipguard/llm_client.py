@@ -63,7 +63,7 @@ class LLMClient:
                         "content": (
                             "You are ShipGuard, an AI release risk reasoner. "
                             "Analyze release risk from the supplied repository "
-                            "metadata and git diff. Focus on backward "
+                            "or pull request metadata and diff. Focus on backward "
                             "compatibility, database migration safety, config "
                             "drift, business logic regressions, rollback risk, "
                             "and what CI may miss. "

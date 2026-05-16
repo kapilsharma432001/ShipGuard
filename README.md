@@ -21,6 +21,13 @@ export SHIPGUARD_LLM_API_KEY="your-api-key"
 export SHIPGUARD_LLM_MODEL="your-model-name"
 ```
 
+For GitHub PR analysis, public repositories work without a GitHub token. For
+private repositories or higher rate limits, set:
+
+```bash
+export SHIPGUARD_GITHUB_TOKEN="your-github-token"
+```
+
 Do not commit secrets. Use `.env.example` as the template if you manage local
 environment files yourself.
 
@@ -51,6 +58,19 @@ Large diffs are truncated before being sent to the LLM. The default limit is
 
 ```bash
 python -m shipguard analyze --repo ./sample-app --max-diff-chars 30000
+```
+
+Analyze a GitHub pull request:
+
+```bash
+python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER
+```
+
+ShipGuard fetches PR metadata, changed file names, and the PR diff from GitHub.
+The same diff size limit is available:
+
+```bash
+python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER --max-diff-chars 30000
 ```
 
 The CLI prints:
