@@ -26,6 +26,11 @@ from shipguard.llm_client import (
 from shipguard.models import ReleaseRiskReport
 from shipguard.project_memory import ProjectMemoryError, ProjectMemoryStore
 from shipguard.pr_url_parser import InvalidPRURLError, parse_github_pr_url
+from shipguard.report_generator import (
+    ReportArtifacts,
+    ReportGenerationError,
+    generate_release_passport,
+)
 
 app = typer.Typer(
     help="AI Release Risk Reasoner.",
@@ -118,6 +123,11 @@ def analyze_pr(
         "--show-memory-summary",
         help="Print a brief memory summary before the risk report.",
     ),
+    html: bool = typer.Option(
+        False,
+        "--html/--no-html",
+        help="Generate a self-contained HTML Release Passport dashboard.",
+    ),
 ) -> None:
     """Analyze release risk for a GitHub pull request."""
     try:
@@ -175,12 +185,19 @@ def analyze_pr(
 
         report = llm_client.analyze_release(format_pr_prompt(pr_summary, memory_context))
         if use_memory and memory_store is not None and memory_package is not None:
-            update_memory_after_analysis(
+            memory_package.memory = update_memory_after_analysis(
                 store=memory_store,
                 memory=memory_package.memory,
                 pr_summary=pr_summary,
                 report=report,
             )
+        artifacts = generate_release_passport(
+            pr_summary=pr_summary,
+            report=report,
+            memory_package=memory_package,
+            memory_store=memory_store,
+            include_html=html,
+        )
     except GitHubClientError as exc:
         typer.secho(f"GitHub error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -193,8 +210,12 @@ def analyze_pr(
     except ShipGuardLLMError as exc:
         typer.secho(f"LLM error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
+    except ReportGenerationError as exc:
+        typer.secho(f"Report error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
 
     _print_report(report)
+    _print_artifacts(artifacts)
 
 
 def _print_report(report: ReleaseRiskReport) -> None:
@@ -208,3 +229,12 @@ def _print_report(report: ReleaseRiskReport) -> None:
     typer.echo("What CI may miss:")
     for item in report.what_ci_may_miss:
         typer.echo(f"- {item}")
+
+
+def _print_artifacts(artifacts: ReportArtifacts) -> None:
+    typer.echo()
+    typer.echo("Generated artifacts:")
+    typer.echo(f"- {artifacts.markdown_path}")
+    if artifacts.html_path:
+        typer.echo(f"- {artifacts.html_path}")
+    typer.echo(f"- {artifacts.analysis_json_path}")

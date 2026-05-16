@@ -132,6 +132,28 @@ Useful flags:
 - `--show-memory-summary` prints total discovered files, fetched files, skipped
   files, tree truncation status, summary source, known category counts, and the
   memory directory.
+- `--html` also generates a self-contained HTML Release Passport dashboard.
+
+PR analysis always generates a Markdown Release Passport and a structured JSON
+artifact under `.shipguard/reports/<owner>_<repo>_pr_<number>/`:
+
+- `release_passport.md`
+- `analysis.json`
+
+Add `--html` to also generate `release_passport.html`:
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --use-memory \
+  --show-memory-summary \
+  --html
+```
+
+The HTML report is self-contained and opens directly in a browser. It includes
+a dashboard-style score card, decision/risk badges, changed-file metrics,
+project-memory context, release risks, CI blind spots, missing evidence, safer
+rollout guidance, and rollback guidance.
 
 The CLI prints:
 
@@ -140,3 +162,4 @@ The CLI prints:
 - Risk Level
 - What may break
 - What CI may miss
+- Generated artifact paths for PR analysis
