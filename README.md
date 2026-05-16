@@ -32,14 +32,28 @@ Create the synthetic demo repository:
 python scripts/create_demo_repo.py
 ```
 
+The generated `sample-app/` directory is a nested git repository and is ignored
+by the parent ShipGuard repo.
+
 Then analyze it:
 
 ```bash
 python -m shipguard analyze --repo ./sample-app
 ```
 
-The first implementation sends a fixed release-risk prompt to the configured
-LLM and prints:
+ShipGuard reads the target repository's current git diff and sends that release
+context to the configured LLM. The CLI includes the current branch, latest commit
+hash, changed file names, changed file extensions, `git diff --stat`, and the
+full git diff.
+
+Large diffs are truncated before being sent to the LLM. The default limit is
+30,000 characters:
+
+```bash
+python -m shipguard analyze --repo ./sample-app --max-diff-chars 30000
+```
+
+The CLI prints:
 
 - Release Readiness Score
 - Decision

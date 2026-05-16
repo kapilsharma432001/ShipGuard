@@ -1,4 +1,5 @@
 .DS_Store
+sample-app/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

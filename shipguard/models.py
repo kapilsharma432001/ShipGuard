@@ -35,3 +35,16 @@ class ReleaseRiskReport(BaseModel):
     risk_level: RiskLevel
     what_may_break: list[str] = Field(min_length=1)
     what_ci_may_miss: list[str] = Field(min_length=1)
+
+
+class GitChangeSummary(BaseModel):
+    repo_path: str
+    current_branch: str | None = None
+    latest_commit_hash: str | None = None
+    has_uncommitted_changes: bool
+    changed_files: list[str]
+    changed_file_extensions: list[str]
+    diff_stat: str
+    diff: str
+    diff_truncated: bool
+    max_diff_chars: int
