@@ -8,6 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from shipguard.env_loader import load_env_file
 from shipguard.models import GitHubPRRef, PRChangeSummary
 
 
@@ -25,6 +26,7 @@ class GitHubClient:
 
     @classmethod
     def from_env(cls) -> "GitHubClient":
+        load_env_file(override=True)
         return cls(token=os.getenv("SHIPGUARD_GITHUB_TOKEN"))
 
     def fetch_pr_changes(

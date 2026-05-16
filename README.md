@@ -21,6 +21,15 @@ export SHIPGUARD_LLM_API_KEY="your-api-key"
 export SHIPGUARD_LLM_MODEL="your-model-name"
 ```
 
+You can also put these values in a local `.env` file in the directory where you
+run ShipGuard:
+
+```bash
+SHIPGUARD_LLM_BASE_URL=https://your-openai-compatible-endpoint/v1
+SHIPGUARD_LLM_API_KEY=your-api-key
+SHIPGUARD_LLM_MODEL=your-model-name
+```
+
 For GitHub PR analysis, public repositories work without a GitHub token. For
 private repositories or higher rate limits, set:
 
@@ -28,8 +37,17 @@ private repositories or higher rate limits, set:
 export SHIPGUARD_GITHUB_TOKEN="your-github-token"
 ```
 
-Do not commit secrets. Use `.env.example` as the template if you manage local
-environment files yourself.
+Or add it to `.env`:
+
+```bash
+SHIPGUARD_GITHUB_TOKEN=your-github-token
+```
+
+When a local `.env` file is present, ShipGuard uses its values for
+`SHIPGUARD_*` configuration.
+
+Do not commit secrets. Use `.env.example` as the template for local environment
+files.
 
 ## Run
 

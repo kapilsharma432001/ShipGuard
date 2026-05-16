@@ -5,6 +5,7 @@ from typing import Any
 from openai import OpenAI, OpenAIError
 from pydantic import ValidationError
 
+from shipguard.env_loader import load_env_file
 from shipguard.models import LLMConfig, ReleaseRiskReport
 
 
@@ -26,6 +27,7 @@ class LLMClient:
 
     @classmethod
     def from_env(cls) -> "LLMClient":
+        load_env_file(override=True)
         required_vars = {
             "SHIPGUARD_LLM_BASE_URL": os.getenv("SHIPGUARD_LLM_BASE_URL", "").strip(),
             "SHIPGUARD_LLM_API_KEY": os.getenv("SHIPGUARD_LLM_API_KEY", "").strip(),
