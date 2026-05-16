@@ -161,6 +161,7 @@ def analyze_pr(
                 memory_package.memory,
                 memory_package.file_contexts,
                 memory_package.release_history,
+                memory_package.build_report,
             )
             if show_memory_summary:
                 typer.echo()

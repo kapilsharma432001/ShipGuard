@@ -90,6 +90,11 @@ class ProjectMemory(BaseModel):
     last_indexed_base_sha: str | None = None
     last_analyzed_head_sha: str | None = None
     architecture_summary: str | None = None
+    summary_source: str = "DETERMINISTIC"
+    important_components: list[str] = Field(default_factory=list)
+    known_api_surface: list[str] = Field(default_factory=list)
+    known_data_surface: list[str] = Field(default_factory=list)
+    known_config_surface: list[str] = Field(default_factory=list)
     known_api_files: list[str] = Field(default_factory=list)
     known_model_files: list[str] = Field(default_factory=list)
     known_migration_files: list[str] = Field(default_factory=list)
@@ -110,6 +115,11 @@ class ProjectFileContext(BaseModel):
     env_vars: list[str] = Field(default_factory=list)
     db_tables: list[str] = Field(default_factory=list)
     api_routes: list[str] = Field(default_factory=list)
+    imports: list[str] = Field(default_factory=list)
+    migration_operations: list[str] = Field(default_factory=list)
+    dependencies: list[str] = Field(default_factory=list)
+    security_signals: list[str] = Field(default_factory=list)
+    test_frameworks: list[str] = Field(default_factory=list)
 
 
 class ReleaseHistoryItem(BaseModel):
@@ -123,3 +133,34 @@ class ReleaseHistoryItem(BaseModel):
     risk_level: str | None = None
     top_risks: list[str] = Field(default_factory=list)
     changed_files: list[str] = Field(default_factory=list)
+
+
+class RepositoryFileInventoryItem(BaseModel):
+    path: str
+    sha: str | None = None
+    size: int | None = None
+    extension: str | None = None
+    initial_category: str
+    final_category: str
+    priority: int
+    content_fetched: bool
+    skipped_reason: str | None = None
+    is_binary_candidate: bool
+    is_generated_candidate: bool
+
+
+class MemoryBuildReport(BaseModel):
+    owner: str
+    repo: str
+    base_sha: str
+    total_files_discovered: int
+    files_classified: int
+    files_content_fetched: int
+    files_skipped: int
+    binary_files_skipped: int
+    oversized_files_skipped: int
+    generated_files_skipped: int
+    tree_truncated: bool
+    tree_truncation_warning: str | None = None
+    llm_summary_used: bool
+    llm_summary_error: str | None = None

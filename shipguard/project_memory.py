@@ -8,15 +8,19 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from shipguard.models import (
+    MemoryBuildReport,
     ProjectFileContext,
     ProjectMemory,
+    RepositoryFileInventoryItem,
     ReleaseHistoryItem,
 )
 
 
 PROJECT_MEMORY_FILE = "project_memory.json"
+REPO_INVENTORY_FILE = "repo_inventory.json"
 FILES_INDEX_FILE = "files_index.json"
 RELEASE_HISTORY_FILE = "release_history.jsonl"
+MEMORY_BUILD_REPORT_FILE = "memory_build_report.json"
 
 
 class ProjectMemoryError(RuntimeError):
@@ -35,12 +39,20 @@ class ProjectMemoryStore:
         return self.path / PROJECT_MEMORY_FILE
 
     @property
+    def repo_inventory_path(self) -> Path:
+        return self.path / REPO_INVENTORY_FILE
+
+    @property
     def files_index_path(self) -> Path:
         return self.path / FILES_INDEX_FILE
 
     @property
     def release_history_path(self) -> Path:
         return self.path / RELEASE_HISTORY_FILE
+
+    @property
+    def memory_build_report_path(self) -> Path:
+        return self.path / MEMORY_BUILD_REPORT_FILE
 
     def ensure(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
@@ -82,6 +94,44 @@ class ProjectMemoryStore:
             self.files_index_path,
             [context.model_dump(mode="json") for context in contexts],
         )
+
+    def load_repo_inventory(self) -> list[RepositoryFileInventoryItem]:
+        if not self.repo_inventory_path.is_file():
+            return []
+
+        try:
+            raw = json.loads(self.repo_inventory_path.read_text(encoding="utf-8"))
+            if not isinstance(raw, list):
+                raise ValueError("repo inventory must be a list")
+            return [RepositoryFileInventoryItem.model_validate(item) for item in raw]
+        except (OSError, ValidationError, ValueError, json.JSONDecodeError) as exc:
+            raise ProjectMemoryError(
+                f"could not read repo inventory: {self.repo_inventory_path}"
+            ) from exc
+
+    def save_repo_inventory(self, inventory: list[RepositoryFileInventoryItem]) -> None:
+        self.ensure()
+        _write_json(
+            self.repo_inventory_path,
+            [item.model_dump(mode="json") for item in inventory],
+        )
+
+    def load_memory_build_report(self) -> MemoryBuildReport | None:
+        if not self.memory_build_report_path.is_file():
+            return None
+
+        try:
+            return MemoryBuildReport.model_validate_json(
+                self.memory_build_report_path.read_text(encoding="utf-8")
+            )
+        except (OSError, ValidationError, ValueError) as exc:
+            raise ProjectMemoryError(
+                f"could not read memory build report: {self.memory_build_report_path}"
+            ) from exc
+
+    def save_memory_build_report(self, report: MemoryBuildReport) -> None:
+        self.ensure()
+        _write_json(self.memory_build_report_path, report.model_dump(mode="json"))
 
     def load_release_history(self, limit: int = 10) -> list[ReleaseHistoryItem]:
         if not self.release_history_path.is_file():

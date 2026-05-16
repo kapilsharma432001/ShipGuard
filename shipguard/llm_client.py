@@ -115,6 +115,10 @@ class LLMClient:
                             "Return only valid JSON matching this schema: "
                             "{"
                             '"architecture_summary": string, '
+                            '"important_components": array of strings, '
+                            '"known_api_surface": array of strings, '
+                            '"known_data_surface": array of strings, '
+                            '"known_config_surface": array of strings, '
                             '"known_release_risks": array of strings, '
                             '"file_summaries": array of objects with '
                             '"path" and "summary" strings'

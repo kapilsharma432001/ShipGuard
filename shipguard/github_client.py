@@ -109,16 +109,33 @@ class GitHubClient:
         repo: str,
         ref: str,
     ) -> list[dict[str, Any]]:
-        tree = self._get_json(
-            f"{_repository_path(owner, repo)}/git/trees/{quote(ref, safe='')}"
-            "?recursive=1"
-        )
-        if not isinstance(tree, dict) or not isinstance(tree.get("tree"), list):
+        tree = self._get_tree(owner, repo, ref, recursive=True)
+        if tree["truncated"]:
             raise GitHubClientError(
-                "GitHub returned an unexpected repository tree response."
+                "GitHub recursive tree response was truncated. Use "
+                "fetch_repository_tree to receive truncation metadata and fallback "
+                "subtree traversal."
             )
 
-        return [item for item in tree["tree"] if isinstance(item, dict)]
+        return tree["tree"]
+
+    def fetch_repository_tree(
+        self,
+        owner: str,
+        repo: str,
+        ref: str,
+    ) -> tuple[list[dict[str, Any]], bool, str | None]:
+        recursive = self._get_tree(owner, repo, ref, recursive=True)
+        tree = recursive["tree"]
+        if not recursive["truncated"]:
+            return tree, False, None
+
+        warning = (
+            "GitHub recursive tree response was truncated; ShipGuard fetched "
+            "subtrees non-recursively to build a complete inventory."
+        )
+        complete_tree = self._fetch_tree_subtrees(owner, repo, ref)
+        return complete_tree, True, warning
 
     def fetch_file_content(
         self,
@@ -168,6 +185,55 @@ class GitHubClient:
             if len(page_files) < 100:
                 return files
             page += 1
+
+    def _get_tree(
+        self,
+        owner: str,
+        repo: str,
+        ref: str,
+        recursive: bool,
+    ) -> dict[str, Any]:
+        suffix = "?recursive=1" if recursive else ""
+        payload = self._get_json(
+            f"{_repository_path(owner, repo)}/git/trees/{quote(ref, safe='')}{suffix}"
+        )
+        if not isinstance(payload, dict) or not isinstance(payload.get("tree"), list):
+            raise GitHubClientError(
+                "GitHub returned an unexpected repository tree response."
+            )
+
+        return {
+            "tree": [item for item in payload["tree"] if isinstance(item, dict)],
+            "truncated": bool(payload.get("truncated")),
+        }
+
+    def _fetch_tree_subtrees(
+        self,
+        owner: str,
+        repo: str,
+        ref: str,
+    ) -> list[dict[str, Any]]:
+        root = self._get_tree(owner, repo, ref, recursive=False)["tree"]
+        complete: list[dict[str, Any]] = []
+        stack = list(root)
+
+        while stack:
+            item = stack.pop(0)
+            complete.append(item)
+            if item.get("type") != "tree" or not isinstance(item.get("sha"), str):
+                continue
+
+            subtree = self._get_tree(owner, repo, item["sha"], recursive=False)["tree"]
+            parent_path = item.get("path")
+            if not isinstance(parent_path, str):
+                continue
+            for child in subtree:
+                child_path = child.get("path")
+                if isinstance(child_path, str):
+                    child = {**child, "path": f"{parent_path}/{child_path}"}
+                stack.append(child)
+
+        return complete
 
     def _get_json(self, path: str) -> Any:
         body = self._request(path, accept="application/vnd.github+json")
