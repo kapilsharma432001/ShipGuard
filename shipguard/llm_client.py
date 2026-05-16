@@ -5,6 +5,7 @@ from typing import Any
 from openai import OpenAI, OpenAIError
 from pydantic import ValidationError
 
+from shipguard.env_loader import load_env_file
 from shipguard.models import LLMConfig, ReleaseRiskReport
 
 
@@ -26,6 +27,7 @@ class LLMClient:
 
     @classmethod
     def from_env(cls) -> "LLMClient":
+        load_env_file(override=True)
         required_vars = {
             "SHIPGUARD_LLM_BASE_URL": os.getenv("SHIPGUARD_LLM_BASE_URL", "").strip(),
             "SHIPGUARD_LLM_API_KEY": os.getenv("SHIPGUARD_LLM_API_KEY", "").strip(),
@@ -63,7 +65,7 @@ class LLMClient:
                         "content": (
                             "You are ShipGuard, an AI release risk reasoner. "
                             "Analyze release risk from the supplied repository "
-                            "metadata and git diff. Focus on backward "
+                            "or pull request metadata and diff. Focus on backward "
                             "compatibility, database migration safety, config "
                             "drift, business logic regressions, rollback risk, "
                             "and what CI may miss. "

@@ -48,3 +48,32 @@ class GitChangeSummary(BaseModel):
     diff: str
     diff_truncated: bool
     max_diff_chars: int
+
+
+class GitHubPRRef(BaseModel):
+    owner: str
+    repo: str
+    number: int
+    url: str
+
+
+class PRChangeSummary(BaseModel):
+    pr_url: str
+    owner: str
+    repo: str
+    pr_number: int
+    title: str
+    body: str | None = None
+    state: str
+    base_branch: str
+    head_branch: str
+    base_sha: str
+    head_sha: str
+    changed_files_count: int
+    additions: int
+    deletions: int
+    changed_files: list[str]
+    changed_file_extensions: list[str]
+    diff: str
+    diff_truncated: bool
+    max_diff_chars: int
