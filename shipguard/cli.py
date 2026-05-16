@@ -84,7 +84,7 @@ def analyze_pr(
         help="GitHub pull request URL to analyze.",
     ),
     max_diff_chars: int = typer.Option(
-        30_000,
+        120_000,
         "--max-diff-chars",
         min=1,
         help="Maximum PR diff characters to send to the LLM.",

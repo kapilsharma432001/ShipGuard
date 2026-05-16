@@ -13,6 +13,16 @@ from shipguard.models import GitHubPRRef, PRChangeSummary
 
 
 GITHUB_API_URL = "https://api.github.com"
+DEFAULT_PR_MAX_DIFF_CHARS = 120_000
+DIFF_STRATEGY = (
+    "risk-prioritized per-file diff packing: high-risk file diffs first, "
+    "then medium-risk file diffs, then low-risk file diffs as budget allows; "
+    "oversized file diffs use beginning/end excerpts"
+)
+PARTIAL_DIFF_MARKER = (
+    "\n\n[ShipGuard: middle of this file diff omitted because it exceeded "
+    "the remaining PR diff context budget]\n\n"
+)
 
 
 class GitHubClientError(RuntimeError):
@@ -32,7 +42,7 @@ class GitHubClient:
     def fetch_pr_changes(
         self,
         pr: GitHubPRRef,
-        max_diff_chars: int = 30_000,
+        max_diff_chars: int = DEFAULT_PR_MAX_DIFF_CHARS,
     ) -> PRChangeSummary:
         if max_diff_chars <= 0:
             raise GitHubClientError("max diff characters must be greater than zero.")
@@ -51,8 +61,12 @@ class GitHubClient:
                 "or the diff may be unavailable."
             )
 
-        truncated_diff, was_truncated = _truncate(diff, max_diff_chars)
         changed_files = [file["filename"] for file in files if file.get("filename")]
+        packed_diff = _pack_pr_diff(
+            diff=diff,
+            changed_files=changed_files,
+            max_chars=max_diff_chars,
+        )
 
         return PRChangeSummary(
             pr_url=pr.url,
@@ -71,8 +85,14 @@ class GitHubClient:
             deletions=int(metadata.get("deletions") or 0),
             changed_files=changed_files,
             changed_file_extensions=_file_extensions(changed_files),
-            diff=truncated_diff,
-            diff_truncated=was_truncated,
+            included_files=packed_diff["included_files"],
+            omitted_files=packed_diff["omitted_files"],
+            partially_included_files=packed_diff["partially_included_files"],
+            diff_strategy=DIFF_STRATEGY,
+            diff=packed_diff["diff"],
+            diff_truncated=bool(
+                packed_diff["omitted_files"] or packed_diff["partially_included_files"]
+            ),
             max_diff_chars=max_diff_chars,
         )
 
@@ -125,11 +145,14 @@ def format_pr_prompt(summary: PRChangeSummary) -> str:
     changed_files = "\n".join(f"- {path}" for path in summary.changed_files) or "- None"
     extensions = ", ".join(summary.changed_file_extensions) or "none"
     body = summary.body or "(no PR description)"
-    truncated_note = (
-        f"The PR diff was truncated to {summary.max_diff_chars} characters. "
-        "Reason only from the visible diff and call out that additional risk may be hidden."
+    included_files = _format_file_list(summary.included_files)
+    partial_files = _format_file_list(summary.partially_included_files)
+    omitted_files = _format_file_list(summary.omitted_files)
+    diff_note = (
+        "Some file diffs were omitted or partially included. Treat omitted risky files "
+        "as missing evidence and mention that manual review is needed."
         if summary.diff_truncated
-        else "The full PR diff was included."
+        else "Every changed file diff was included in full."
     )
 
     return f"""Analyze this GitHub pull request release risk based on the metadata and diff below.
@@ -150,13 +173,27 @@ Changed files count: {summary.changed_files_count}
 Additions: {summary.additions}
 Deletions: {summary.deletions}
 Changed file extensions: {extensions}
-Diff size limit: {summary.max_diff_chars} characters
-Diff truncation: {truncated_note}
+PR diff context budget: {summary.max_diff_chars} characters
+PR diff packing strategy: {summary.diff_strategy}
+PR diff completeness: {diff_note}
 
-Changed files:
+Changed files (complete list):
 {changed_files}
 
-PR diff:
+Included full file diffs:
+{included_files}
+
+Partially included file diffs:
+{partial_files}
+
+Omitted files due to context budget:
+{omitted_files}
+
+Important: the changed file list is complete even when the diff content below is partial.
+If omitted or partially included files look release-risk sensitive, call that out as
+missing evidence requiring manual review.
+
+PR diff context:
 ```diff
 {summary.diff}
 ```
@@ -185,16 +222,200 @@ def _file_extensions(paths: list[str]) -> list[str]:
     return sorted(extensions)
 
 
-def _truncate(content: str, max_chars: int) -> tuple[str, bool]:
-    if len(content) <= max_chars:
-        return content, False
+def _pack_pr_diff(
+    diff: str,
+    changed_files: list[str],
+    max_chars: int,
+) -> dict[str, Any]:
+    sections = _split_diff_by_file(diff)
+    ordered_files = sorted(
+        changed_files,
+        key=lambda path: (_risk_priority(path), changed_files.index(path)),
+    )
+    included_files: list[str] = []
+    omitted_files: list[str] = []
+    partially_included_files: list[str] = []
+    packed_sections: list[str] = []
+    used_chars = 0
 
-    marker = "\n\n[ShipGuard: PR diff truncated because it exceeded the size limit]\n"
-    if max_chars <= len(marker):
-        return marker[:max_chars], True
+    for path in ordered_files:
+        section = sections.get(path) or _missing_file_diff_section(path)
+        prefix = "" if not packed_sections else "\n"
+        full_section = f"{prefix}{section.rstrip()}\n"
+        remaining = max_chars - used_chars
 
-    keep_chars = max(max_chars - len(marker), 0)
-    return content[:keep_chars].rstrip() + marker, True
+        if remaining <= 0:
+            omitted_files.append(path)
+            continue
+
+        if len(full_section) <= remaining:
+            packed_sections.append(full_section)
+            included_files.append(path)
+            used_chars += len(full_section)
+            continue
+
+        partial_section = _partial_file_diff(full_section, remaining)
+        if partial_section:
+            packed_sections.append(partial_section)
+            partially_included_files.append(path)
+            used_chars += len(partial_section)
+        else:
+            omitted_files.append(path)
+
+    return {
+        "diff": "".join(packed_sections).rstrip(),
+        "included_files": included_files,
+        "omitted_files": omitted_files,
+        "partially_included_files": partially_included_files,
+    }
+
+
+def _split_diff_by_file(diff: str) -> dict[str, str]:
+    sections: dict[str, str] = {}
+    current: list[str] = []
+
+    for line in diff.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            _store_diff_section(sections, current)
+            current = [line]
+        elif current:
+            current.append(line)
+
+    _store_diff_section(sections, current)
+    return sections
+
+
+def _store_diff_section(sections: dict[str, str], lines: list[str]) -> None:
+    if not lines:
+        return
+
+    path = _diff_section_path(lines)
+    if path:
+        sections[path] = "".join(lines)
+
+
+def _diff_section_path(lines: list[str]) -> str | None:
+    old_path: str | None = None
+
+    for line in lines:
+        if line.startswith("+++ "):
+            path = _normalize_diff_path(line[4:].strip())
+            if path:
+                return path
+        if line.startswith("--- "):
+            old_path = _normalize_diff_path(line[4:].strip())
+
+    return old_path or _diff_git_path(lines[0])
+
+
+def _diff_git_path(line: str) -> str | None:
+    parts = line.strip().split()
+    if len(parts) < 4 or parts[0:2] != ["diff", "--git"]:
+        return None
+
+    return _normalize_diff_path(parts[3]) or _normalize_diff_path(parts[2])
+
+
+def _normalize_diff_path(path: str) -> str | None:
+    path = path.strip('"')
+    if path == "/dev/null":
+        return None
+    if path.startswith("a/") or path.startswith("b/"):
+        return path[2:]
+    return path
+
+
+def _missing_file_diff_section(path: str) -> str:
+    return (
+        f"diff --git a/{path} b/{path}\n"
+        "[ShipGuard: GitHub changed-files API listed this file, but the PR "
+        "diff did not include a text diff section for it]\n"
+    )
+
+
+def _partial_file_diff(section: str, max_chars: int) -> str:
+    if max_chars <= len(PARTIAL_DIFF_MARKER) + 80:
+        return ""
+
+    available = max_chars - len(PARTIAL_DIFF_MARKER)
+    head_chars = max(available // 2, 0)
+    tail_chars = max(available - head_chars, 0)
+    return (
+        section[:head_chars].rstrip()
+        + PARTIAL_DIFF_MARKER
+        + section[-tail_chars:].lstrip()
+    )
+
+
+def _risk_priority(path: str) -> int:
+    lower_path = path.lower()
+    name = Path(lower_path).name
+    parts = set(Path(lower_path).parts)
+
+    if (
+        {"migrations", "alembic", "versions"} & parts
+        or "migration" in lower_path
+        or name in _DEPENDENCY_FILES
+        or name.endswith(".lock")
+        or lower_path.startswith("api/")
+        or "/api/" in lower_path
+        or {"routes", "schemas", "pydantic"} & parts
+        or "schema" in name
+        or "pydantic" in lower_path
+        or {"config", "settings", "env", "docker", "deployment"} & parts
+        or any(term in name for term in ("config", "settings", "env"))
+        or name.startswith(".env")
+        or name in {"dockerfile", "docker-compose.yml", "docker-compose.yaml"}
+        or "deploy" in lower_path
+        or {"auth", "security", "permission", "permissions", "token"} & parts
+        or any(term in lower_path for term in ("auth", "security", "permission", "token"))
+    ):
+        return 0
+
+    if (
+        {"service", "services", "business", "domain", "db", "database", "models"} & parts
+        or "service" in lower_path
+        or "business" in lower_path
+        or "model" in name
+        or name.startswith("test_")
+        or name.endswith("_test.py")
+        or {"test", "tests"} & parts
+    ):
+        return 1
+
+    if (
+        name.startswith("readme")
+        or {"doc", "docs", "documentation"} & parts
+        or lower_path.endswith((".md", ".rst", ".txt"))
+        or name in {".editorconfig", ".prettierrc", ".prettierignore"}
+    ):
+        return 2
+
+    return 1
+
+
+def _format_file_list(paths: list[str]) -> str:
+    return "\n".join(f"- {path}" for path in paths) if paths else "- None"
+
+
+_DEPENDENCY_FILES = {
+    "pyproject.toml",
+    "requirements.txt",
+    "requirements-dev.txt",
+    "poetry.lock",
+    "pdm.lock",
+    "pipfile",
+    "pipfile.lock",
+    "package.json",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "uv.lock",
+    "go.mod",
+    "go.sum",
+    "cargo.toml",
+    "cargo.lock",
+}
 
 
 def _github_error_message(exc: HTTPError, token: str | None) -> str:
