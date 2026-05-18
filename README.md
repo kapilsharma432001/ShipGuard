@@ -25,6 +25,11 @@ HTML, and JSON.
   - `release_passport.md`
   - `release_passport.html` when `--html` is passed
   - `analysis.json`
+- GitHub PR comments:
+  - top-level release review summary
+  - optional inline review comments on high-confidence changed lines
+  - dry-run comment preview
+  - safe clearing of ShipGuard-generated comments only
 
 ## Requirements
 
@@ -87,6 +92,7 @@ Commands:
 
 - `analyze`: analyze a local git repository diff
 - `analyze-pr`: analyze a GitHub pull request URL
+- `clear-comments`: remove ShipGuard-generated comments from a PR
 
 ## Local Git Diff Analysis
 
@@ -336,6 +342,120 @@ layout with:
 
 `.shipguard/reports/` is ignored by git.
 
+## GitHub PR Comments
+
+ShipGuard can post easy-language review comments to GitHub. Posting and
+clearing comments requires `SHIPGUARD_GITHUB_TOKEN`. The token is never printed.
+
+Dry-run preview:
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --use-memory \
+  --html \
+  --dry-run-comments
+```
+
+Dry run does not post to GitHub. It writes:
+
+```text
+.shipguard/reports/<owner>_<repo>_pr_<number>/pr_comment_preview.md
+```
+
+Post or update a top-level summary comment:
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --use-memory \
+  --html \
+  --post-comment
+```
+
+The summary comment contains the marker:
+
+```html
+<!-- shipguard:summary -->
+```
+
+If a previous ShipGuard summary comment already exists, ShipGuard updates it
+instead of creating a duplicate. The comment includes:
+
+- release readiness score
+- decision
+- risk level
+- 3-5 key risks
+- what CI may miss
+- suggested next actions
+- generated artifact paths
+- note that the full HTML report is available locally or as a CI artifact path
+
+Post inline review comments:
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --use-memory \
+  --html \
+  --post-comment \
+  --post-inline-comments \
+  --max-inline-comments 5
+```
+
+Inline comments use the GitHub pull request review API with event `COMMENT` by
+default. They include the marker:
+
+```html
+<!-- shipguard:inline -->
+```
+
+Inline comments are intentionally conservative:
+
+- at most `--max-inline-comments`
+- only high-confidence issues
+- only changed lines with clear diff evidence
+- no comment on every file
+- no duplicate comment per file in one run
+- short, human, actionable language
+
+Examples of inline risks ShipGuard looks for:
+
+- migration adds a required `NOT NULL` column without default/backfill evidence
+- migration rollback appears missing or destructive
+- public API route/request/response/enum contract changes
+- code uses a new env var without deployment/config evidence in the PR
+
+If ShipGuard detects an issue but cannot map it safely to a changed line, it
+skips the inline comment and includes the note in the top-level summary comment
+or preview.
+
+Future blocking mode:
+
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER \
+  --post-inline-comments \
+  --request-changes
+```
+
+`--request-changes` posts inline review comments with GitHub review event
+`REQUEST_CHANGES`. The default is non-blocking `COMMENT`.
+
+Clear old ShipGuard comments:
+
+```bash
+python -m shipguard clear-comments --pr-url https://github.com/OWNER/REPO/pull/NUMBER
+```
+
+This deletes only comments containing ShipGuard markers:
+
+- `<!-- shipguard:summary -->`
+- `<!-- shipguard:inline -->`
+
+It never deletes comments that do not contain a ShipGuard marker. If deletion
+of a marked comment fails, ShipGuard prints a warning and continues.
+
 ## Terminal Output
 
 The CLI still prints the text report:
@@ -356,6 +476,16 @@ Generated artifacts:
 ```
 
 The HTML path is printed only when `--html` is used.
+
+When comment preview is requested, ShipGuard also prints:
+
+```text
+PR comment preview:
+- .shipguard/reports/OWNER_REPO_pr_NUMBER/pr_comment_preview.md
+```
+
+When comments are posted, ShipGuard prints whether the summary comment was
+created or updated and how many inline comments were posted.
 
 ## Example Acceptance Command
 
@@ -390,12 +520,14 @@ shipguard/
   context_builder.py   # project memory/context engine
   project_memory.py    # local JSON memory storage
   report_generator.py  # Release Passport artifacts
+  pr_commenter.py      # PR summary/inline comment generation and cleanup
 scripts/
   create_demo_repo.py  # synthetic sample-app generator
 tests/
   test_env_loader.py
   test_context_builder.py
   test_report_generator.py
+  test_pr_commenter.py
 ```
 
 ## Development Checks
@@ -418,6 +550,7 @@ Check command help:
 python -m shipguard --help
 python -m shipguard analyze --help
 python -m shipguard analyze-pr --help
+python -m shipguard clear-comments --help
 ```
 
 ## Troubleshooting
@@ -441,6 +574,14 @@ GitHub API request failed with HTTP 401/403/404...
 ```
 
 Set `SHIPGUARD_GITHUB_TOKEN` with access to the repository.
+
+Posting or clearing comments without a token:
+
+```text
+GitHub error: SHIPGUARD_GITHUB_TOKEN is required to post or clear PR comments.
+```
+
+Set `SHIPGUARD_GITHUB_TOKEN` with permission to comment on the PR.
 
 Invalid PR URL:
 
@@ -475,6 +616,13 @@ Report files not appearing:
 - `release_passport.html` is generated only when `--html` is passed.
 - Report files are written under `.shipguard/reports/`.
 
+Comment preview not appearing:
+
+- `pr_comment_preview.md` is generated only when `--dry-run-comments`,
+  `--post-comment`, or `--post-inline-comments` is used.
+- The preview is written under the same PR report directory as the Release
+  Passport artifacts.
+
 ## Security Notes
 
 - Do not commit `.env` or API keys.
@@ -482,3 +630,4 @@ Report files not appearing:
 - Local memory stores project metadata, extracted env var names, route names,
   table names, release risks, and release history. Store `.shipguard/memory/`
   and `.shipguard/reports/` according to your internal data handling policy.
+- Comment cleanup only deletes comments with ShipGuard markers.

@@ -164,3 +164,26 @@ class MemoryBuildReport(BaseModel):
     tree_truncation_warning: str | None = None
     llm_summary_used: bool
     llm_summary_error: str | None = None
+
+
+class PRInlineCommentSuggestion(BaseModel):
+    path: str
+    line: int
+    side: str = "RIGHT"
+    body: str
+    reason: str
+
+
+class PRCommentPlan(BaseModel):
+    summary_body: str
+    inline_comments: list[PRInlineCommentSuggestion] = Field(default_factory=list)
+    skipped_inline_notes: list[str] = Field(default_factory=list)
+    preview_path: str | None = None
+
+
+class PRCommentResult(BaseModel):
+    summary_action: str | None = None
+    inline_comments_posted: int = 0
+    deleted_summary_comments: int = 0
+    deleted_inline_comments: int = 0
+    warnings: list[str] = Field(default_factory=list)
