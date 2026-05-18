@@ -11,11 +11,11 @@ router = APIRouter()
 
 class ClaimDecision(StrEnum):
     APPROVED = "Approved"
-    DENIED = "Denied"
+    DENIED = "DENIED"
 
 
 class ClaimDecisionRequest(BaseModel):
-    claimant_id: str = Field(min_length=3)
+    member_id: str = Field(min_length=3)
     claim_amount: float = Field(gt=0)
     diagnosis_code: str
 
@@ -23,13 +23,13 @@ class ClaimDecisionRequest(BaseModel):
 class ClaimDecisionResponse(BaseModel):
     claim_id: str
     decision: ClaimDecision
-    assigned_queue: str
+    review_queue: str
 
 
 @router.post("/{claim_id}/decision", response_model=ClaimDecisionResponse)
 def decide_claim(claim_id: str, request: ClaimDecisionRequest) -> ClaimDecisionResponse:
     queue = choose_claim_queue(
-        claimant_id=request.claimant_id,
+        member_id=request.member_id,
         claim_amount=request.claim_amount,
         diagnosis_code=request.diagnosis_code,
     )
@@ -37,5 +37,5 @@ def decide_claim(claim_id: str, request: ClaimDecisionRequest) -> ClaimDecisionR
     return ClaimDecisionResponse(
         claim_id=claim_id,
         decision=decision,
-        assigned_queue=queue,
+        review_queue=queue,
     )
