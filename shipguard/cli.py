@@ -39,8 +39,42 @@ from shipguard.report_generator import (
     generate_release_passport,
 )
 
+APP_HELP = """AI Release Risk Reasoner.
+
+Common commands:
+
+  Use PR_URL like https://github.com/OWNER/REPO/pull/NUMBER.
+
+  Show help:
+    python -m shipguard --help
+    python -m shipguard analyze --help
+    python -m shipguard analyze-pr --help
+    python -m shipguard clear-comments --help
+
+  Analyze a local git diff:
+    python -m shipguard analyze --repo ./sample-app
+
+  Analyze a GitHub PR:
+    python -m shipguard analyze-pr --pr-url PR_URL
+
+  Analyze a GitHub PR with project memory and HTML report:
+    python -m shipguard analyze-pr --pr-url PR_URL --use-memory --show-memory-summary --html
+
+  Preview GitHub PR comments without posting:
+    python -m shipguard analyze-pr --pr-url PR_URL --use-memory --html --dry-run-comments
+
+  Post or update the top-level ShipGuard PR summary comment:
+    python -m shipguard analyze-pr --pr-url PR_URL --use-memory --html --post-comment
+
+  Post summary and up to 5 inline review comments:
+    python -m shipguard analyze-pr --pr-url PR_URL --use-memory --html --post-comment --post-inline-comments --max-inline-comments 5
+
+  Clear old ShipGuard comments from a PR:
+    python -m shipguard clear-comments --pr-url PR_URL
+"""
+
 app = typer.Typer(
-    help="AI Release Risk Reasoner.",
+    help=APP_HELP,
     no_args_is_help=True,
 )
 

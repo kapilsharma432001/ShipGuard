@@ -128,6 +128,7 @@ def build_comment_plan(
     skipped_notes: list[str] = []
     inline_comments = build_inline_comment_suggestions(
         pr_summary=pr_summary,
+        report=report,
         max_inline_comments=max_inline_comments,
         skipped_notes=skipped_notes,
     )
@@ -208,6 +209,7 @@ def build_summary_comment(
 
 def build_inline_comment_suggestions(
     pr_summary: PRChangeSummary,
+    report: ReleaseRiskReport | None = None,
     max_inline_comments: int = 5,
     skipped_notes: list[str] | None = None,
 ) -> list[PRInlineCommentSuggestion]:
@@ -328,6 +330,16 @@ def build_inline_comment_suggestions(
         skipped_notes.append(
             "I did not see test files changed for release-sensitive files: "
             + ", ".join(risky_without_tests[:5])
+        )
+
+    if report is not None and len(comments) < max_inline_comments:
+        _add_report_risk_comments(
+            mapper=mapper,
+            pr_summary=pr_summary,
+            report=report,
+            comments=comments,
+            commented_paths=commented_paths,
+            max_inline_comments=max_inline_comments,
         )
 
     return comments
@@ -508,6 +520,181 @@ def _quoted_values(lines: list[DiffLine]) -> list[str]:
     return values
 
 
+def _add_report_risk_comments(
+    mapper: DiffLineMapper,
+    pr_summary: PRChangeSummary,
+    report: ReleaseRiskReport,
+    comments: list[PRInlineCommentSuggestion],
+    commented_paths: set[str],
+    max_inline_comments: int,
+) -> None:
+    for risk in report.what_may_break:
+        if len(comments) >= max_inline_comments:
+            return
+
+        line = _best_changed_line_for_risk(
+            mapper=mapper,
+            changed_files=pr_summary.changed_files,
+            risk=risk,
+            commented_paths=commented_paths,
+        )
+        if line is None:
+            continue
+
+        comments.append(
+            PRInlineCommentSuggestion(
+                path=line.path,
+                line=line.line,
+                side=line.side,
+                body=f"{_report_risk_comment_body(risk)}\n\n{INLINE_MARKER}",
+                reason="release risk from analysis",
+            )
+        )
+        commented_paths.add(line.path)
+
+
+def _best_changed_line_for_risk(
+    mapper: DiffLineMapper,
+    changed_files: list[str],
+    risk: str,
+    commented_paths: set[str],
+) -> DiffLine | None:
+    risk_tokens = _tokens(risk)
+    candidates: list[tuple[int, int, DiffLine]] = []
+
+    for path_index, path in enumerate(changed_files):
+        if path in commented_paths:
+            continue
+
+        category = classify_file(path)
+        if not _should_consider_path_for_risk(category, risk_tokens):
+            continue
+
+        added_lines = mapper.added_lines(path)
+        if not added_lines:
+            continue
+
+        path_score = _path_risk_score(path, risk_tokens)
+        for line_index, line in enumerate(added_lines):
+            score = path_score + _line_risk_score(line.content, risk_tokens)
+            if score >= 3:
+                candidates.append((score, -(path_index * 1000 + line_index), line))
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+
+def _path_risk_score(path: str, risk_tokens: set[str]) -> int:
+    path_tokens = _tokens(path)
+    category = classify_file(path)
+    score = 2 * len(risk_tokens & path_tokens)
+
+    if category == "TEST" and risk_tokens & {"ci", "test", "tests", "coverage"}:
+        score += 3
+    elif category == "TEST":
+        score -= 3
+    elif category == "DOCS":
+        score -= 2
+
+    for category_name, terms in _CATEGORY_RISK_TERMS.items():
+        if category == category_name and risk_tokens & terms:
+            score += 3
+
+    if risk_tokens & {"comment", "comments", "inline", "review", "marker"}:
+        if path_tokens & {"commenter", "comment", "comments", "github", "cli"}:
+            score += 4
+
+    return score
+
+
+def _should_consider_path_for_risk(category: str, risk_tokens: set[str]) -> bool:
+    if category == "TEST":
+        return bool(risk_tokens & {"ci", "test", "tests", "coverage"})
+    if category == "DOCS":
+        return bool(risk_tokens & {"doc", "docs", "documentation", "readme"})
+    return True
+
+
+def _line_risk_score(content: str, risk_tokens: set[str]) -> int:
+    line_tokens = _tokens(content)
+    score = len(risk_tokens & line_tokens)
+    lower_content = content.lower()
+    for token in risk_tokens:
+        if len(token) >= 6 and token in lower_content:
+            score += 1
+    return score
+
+
+def _report_risk_comment_body(risk: str) -> str:
+    return (
+        "ShipGuard risk: "
+        f"{_shorten(risk, 260)}\n\n"
+        f"Suggested change: {_suggested_change_for_risk(risk)}"
+    )
+
+
+def _suggested_change_for_risk(risk: str) -> str:
+    text = risk.lower()
+    if any(term in text for term in ("preview", "filesystem", "read-only", "disk")):
+        return (
+            "Make this side effect explicit or non-fatal, and add a test for write "
+            "failure so analysis does not fail unexpectedly."
+        )
+    if any(term in text for term in ("token", "permission", "401", "403", "scope")):
+        return (
+            "Validate required GitHub token permissions before posting and surface a "
+            "specific remediation message when scopes are missing."
+        )
+    if any(term in text for term in ("clear-comments", "delete", "deletion", "marker")):
+        return (
+            "Tighten cleanup matching, such as checking both the marker and author, "
+            "before deleting existing comments."
+        )
+    if any(term in text for term in ("head_sha", "force-push", "stale", "line mapping")):
+        return (
+            "Re-fetch the latest PR head before posting review comments and fall back "
+            "to the summary comment if GitHub rejects a line."
+        )
+    if any(term in text for term in ("post", "patch", "delete", "rate limit", "network")):
+        return (
+            "Add targeted handling and tests for GitHub write failures so users know "
+            "which API operation failed."
+        )
+    if any(term in text for term in ("heuristic", "regex", "classify_file", "pattern")):
+        return (
+            "Add representative fixtures for this file type and keep low-confidence "
+            "findings in the summary instead of posting misleading inline comments."
+        )
+    if any(term in text for term in ("test", "ci", "coverage")):
+        return "Add an end-to-end test that exercises this changed release path."
+    if any(term in text for term in ("api", "client", "request", "response", "contract")):
+        return "Add backward compatibility coverage or version the changed API contract."
+    if any(term in text for term in ("migration", "database", "db", "rollback")):
+        return "Document and test the production migration and rollback path."
+    return "Add a guard or focused test around this changed behavior before merging."
+
+
+def _shorten(value: str, max_chars: int) -> str:
+    cleaned = " ".join(value.split())
+    if len(cleaned) <= max_chars:
+        return cleaned
+    return cleaned[: max_chars - 3].rstrip(" ,.;:") + "..."
+
+
+def _tokens(value: str) -> set[str]:
+    tokens: set[str] = set()
+    for raw in re.findall(r"[A-Za-z0-9_./-]{2,}", value.lower()):
+        normalized = raw.strip("`'\".,:;()[]{}")
+        if not normalized:
+            continue
+        for token in [normalized, *re.split(r"[/_.-]+", normalized)]:
+            if len(token) >= 2 and token not in _TOKEN_STOPWORDS:
+                tokens.add(token)
+    return tokens
+
+
 def _suggested_next_steps(report: ReleaseRiskReport) -> list[str]:
     text = "\n".join([*report.what_may_break, *report.what_ci_may_miss]).lower()
     steps = ["Review the generated Release Passport before merging."]
@@ -554,3 +741,51 @@ def _normalize_diff_path(path: str) -> str | None:
     if path.startswith("a/") or path.startswith("b/"):
         return path[2:]
     return path
+
+
+_CATEGORY_RISK_TERMS = {
+    "API": {"api", "client", "contract", "request", "response", "route", "schema"},
+    "CI_CD": {"ci", "workflow", "pipeline", "deploy", "deployment"},
+    "CONFIG": {"config", "env", "environment", "secret", "token"},
+    "DB_MODEL": {"database", "db", "model", "schema", "table"},
+    "DEPLOYMENT": {"deploy", "deployment", "env", "config", "secret"},
+    "MIGRATION": {"migration", "database", "db", "rollback", "backfill"},
+    "SECURITY": {"auth", "permission", "security", "token", "scope"},
+    "SERVICE": {"service", "business", "workflow", "operation"},
+    "SOURCE": {"function", "class", "logic", "runtime", "side", "effect"},
+}
+
+_TOKEN_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "any",
+    "are",
+    "as",
+    "be",
+    "but",
+    "by",
+    "can",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "it",
+    "may",
+    "new",
+    "no",
+    "not",
+    "now",
+    "of",
+    "old",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "to",
+    "when",
+    "with",
+    "without",
+}

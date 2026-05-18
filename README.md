@@ -419,6 +419,10 @@ Inline comments are intentionally conservative:
 - no duplicate comment per file in one run
 - short, human, actionable language
 
+ShipGuard first looks for deterministic line-level risks, then falls back to
+anchoring top-level `what_may_break` risks to likely changed lines when it can
+find a reasonable match. Each inline comment includes a suggested change.
+
 Examples of inline risks ShipGuard looks for:
 
 - migration adds a required `NOT NULL` column without default/backfill evidence

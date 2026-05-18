@@ -121,6 +121,24 @@ class PRCommenterTests(unittest.TestCase):
             self.assertIn(INLINE_MARKER, preview)
             self.assertEqual(plan.preview_path, str(preview_path))
 
+    def test_report_risks_are_anchored_to_changed_lines(self) -> None:
+        plan = build_comment_plan(
+            pr_summary=_comment_feature_pr_summary(),
+            report=_comment_feature_risk_report(),
+            artifacts=_artifacts(),
+            max_inline_comments=5,
+        )
+
+        self.assertGreaterEqual(len(plan.inline_comments), 2)
+        bodies = "\n".join(comment.body for comment in plan.inline_comments)
+        paths = {comment.path for comment in plan.inline_comments}
+
+        self.assertIn("Suggested change:", bodies)
+        self.assertIn(INLINE_MARKER, bodies)
+        self.assertTrue(
+            {"shipguard/cli.py", "shipguard/pr_commenter.py"} & paths
+        )
+
 
 def _pr_summary() -> PRChangeSummary:
     return PRChangeSummary(
@@ -177,6 +195,58 @@ def _risk_report() -> ReleaseRiskReport:
     )
 
 
+def _comment_feature_pr_summary() -> PRChangeSummary:
+    return PRChangeSummary(
+        pr_url="https://github.com/example/shipguard/pull/8",
+        owner="example",
+        repo="shipguard",
+        pr_number=8,
+        title="Add PR comments",
+        body="Adds GitHub PR summary and inline comments.",
+        state="open",
+        base_branch="main",
+        head_branch="feature/pr-comments",
+        base_sha="base-sha",
+        head_sha="head-sha",
+        changed_files_count=3,
+        additions=80,
+        deletions=2,
+        changed_files=[
+            "shipguard/cli.py",
+            "shipguard/pr_commenter.py",
+            "shipguard/github_client.py",
+        ],
+        changed_file_extensions=[".py"],
+        included_files=[
+            "shipguard/cli.py",
+            "shipguard/pr_commenter.py",
+            "shipguard/github_client.py",
+        ],
+        omitted_files=[],
+        partially_included_files=[],
+        diff_strategy="test",
+        diff=_comment_feature_diff(),
+        diff_truncated=False,
+        max_diff_chars=120_000,
+    )
+
+
+def _comment_feature_risk_report() -> ReleaseRiskReport:
+    return ReleaseRiskReport(
+        release_readiness_score=63,
+        decision="REVIEW_REQUIRED",
+        risk_level="MEDIUM",
+        what_may_break=[
+            "`analyze-pr` now has new side effects when comment flags are used: it writes `pr_comment_preview.md`, which can fail in read-only workspaces.",
+            "Posting or clearing comments now requires `SHIPGUARD_GITHUB_TOKEN` with comment/review write permissions; read-only tokens can fail with 401/403.",
+            "Inline review posting is coupled to `pr_summary.head_sha`; force-pushed PRs can make GitHub reject the review.",
+        ],
+        what_ci_may_miss=[
+            "CI may not exercise real GitHub write calls.",
+        ],
+    )
+
+
 def _artifacts() -> ReportArtifacts:
     return ReportArtifacts(
         markdown_path=".shipguard/reports/example_claims-api_pr_42/release_passport.md",
@@ -208,6 +278,40 @@ diff --git a/app/settings.py b/app/settings.py
 @@ -1,2 +1,3 @@
  import os
 +CLAIMS_GATEWAY_URL = os.getenv("CLAIMS_GATEWAY_URL")
+"""
+
+
+def _comment_feature_diff() -> str:
+    return """diff --git a/shipguard/cli.py b/shipguard/cli.py
+--- a/shipguard/cli.py
++++ b/shipguard/cli.py
+@@ -170,3 +170,8 @@ def analyze_pr():
++    post_comment: bool = typer.Option(False, "--post-comment")
++    post_inline_comments: bool = typer.Option(False, "--post-inline-comments")
++    if post_comment or post_inline_comments:
++        save_comment_preview(comment_plan, report_dir=Path(artifacts.markdown_path).parent)
++        post_summary_comment(github_client=github_client, pr_ref=pr_ref, body=body)
+diff --git a/shipguard/pr_commenter.py b/shipguard/pr_commenter.py
+--- a/shipguard/pr_commenter.py
++++ b/shipguard/pr_commenter.py
+@@ -1,3 +1,10 @@
++PREVIEW_FILE = "pr_comment_preview.md"
++def post_inline_review_comments(github_client, pr_summary, comments):
++    _require_github_token(github_client)
++    github_client.create_pull_request_review(
++        commit_id=pr_summary.head_sha,
++        comments=comments,
++    )
+diff --git a/shipguard/github_client.py b/shipguard/github_client.py
+--- a/shipguard/github_client.py
++++ b/shipguard/github_client.py
+@@ -10,3 +10,8 @@ class GitHubClient:
++    def create_issue_comment(self, owner, repo, issue_number, body):
++        return self._send_json(path, method="POST", payload={"body": body})
++    def update_issue_comment(self, owner, repo, comment_id, body):
++        return self._send_json(path, method="PATCH", payload={"body": body})
++    def delete_issue_comment(self, owner, repo, comment_id):
++        return self._request(path, method="DELETE")
 """
 
 
