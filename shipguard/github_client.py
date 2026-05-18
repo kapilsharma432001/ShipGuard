@@ -35,6 +35,10 @@ class GitHubClient:
         self._token = token.strip() if token else None
         self._api_url = api_url.rstrip("/")
 
+    @property
+    def has_token(self) -> bool:
+        return bool(self._token)
+
     @classmethod
     def from_env(cls) -> "GitHubClient":
         load_env_file(override=True)
@@ -171,6 +175,140 @@ class GitHubClient:
 
         return raw.decode("utf-8", errors="replace")
 
+    def list_issue_comments(
+        self,
+        owner: str,
+        repo: str,
+        issue_number: int,
+    ) -> list[dict[str, Any]]:
+        comments: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            page_comments = self._get_json(
+                f"{_repository_path(owner, repo)}/issues/{issue_number}/comments"
+                f"?per_page=100&page={page}"
+            )
+            if not isinstance(page_comments, list):
+                raise GitHubClientError(
+                    "GitHub returned an unexpected issue comments response."
+                )
+            comments.extend(item for item in page_comments if isinstance(item, dict))
+            if len(page_comments) < 100:
+                return comments
+            page += 1
+
+    def create_issue_comment(
+        self,
+        owner: str,
+        repo: str,
+        issue_number: int,
+        body: str,
+    ) -> dict[str, Any]:
+        payload = self._send_json(
+            f"{_repository_path(owner, repo)}/issues/{issue_number}/comments",
+            method="POST",
+            payload={"body": body},
+        )
+        if not isinstance(payload, dict):
+            raise GitHubClientError(
+                "GitHub returned an unexpected create issue comment response."
+            )
+        return payload
+
+    def update_issue_comment(
+        self,
+        owner: str,
+        repo: str,
+        comment_id: int,
+        body: str,
+    ) -> dict[str, Any]:
+        payload = self._send_json(
+            f"{_repository_path(owner, repo)}/issues/comments/{comment_id}",
+            method="PATCH",
+            payload={"body": body},
+        )
+        if not isinstance(payload, dict):
+            raise GitHubClientError(
+                "GitHub returned an unexpected update issue comment response."
+            )
+        return payload
+
+    def delete_issue_comment(self, owner: str, repo: str, comment_id: int) -> None:
+        self._request(
+            f"{_repository_path(owner, repo)}/issues/comments/{comment_id}",
+            accept="application/vnd.github+json",
+            method="DELETE",
+        )
+
+    def create_pull_request_review(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        commit_id: str,
+        body: str,
+        event: str,
+        comments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        review_comments = [
+            {
+                "path": comment["path"],
+                "line": comment["line"],
+                "side": comment.get("side", "RIGHT"),
+                "body": comment["body"],
+            }
+            for comment in comments
+        ]
+        payload = self._send_json(
+            f"{_repository_path(owner, repo)}/pulls/{pull_number}/reviews",
+            method="POST",
+            payload={
+                "commit_id": commit_id,
+                "body": body,
+                "event": event,
+                "comments": review_comments,
+            },
+        )
+        if not isinstance(payload, dict):
+            raise GitHubClientError(
+                "GitHub returned an unexpected create pull request review response."
+            )
+        return payload
+
+    def list_pull_request_review_comments(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+    ) -> list[dict[str, Any]]:
+        comments: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            page_comments = self._get_json(
+                f"{_repository_path(owner, repo)}/pulls/{pull_number}/comments"
+                f"?per_page=100&page={page}"
+            )
+            if not isinstance(page_comments, list):
+                raise GitHubClientError(
+                    "GitHub returned an unexpected PR review comments response."
+                )
+            comments.extend(item for item in page_comments if isinstance(item, dict))
+            if len(page_comments) < 100:
+                return comments
+            page += 1
+
+    def delete_pull_request_review_comment(
+        self,
+        owner: str,
+        repo: str,
+        comment_id: int,
+    ) -> None:
+        self._request(
+            f"{_repository_path(owner, repo)}/pulls/comments/{comment_id}",
+            accept="application/vnd.github+json",
+            method="DELETE",
+        )
+
     def _get_changed_files(self, pr: GitHubPRRef) -> list[dict[str, Any]]:
         files: list[dict[str, Any]] = []
         page = 1
@@ -242,20 +380,44 @@ class GitHubClient:
         except json.JSONDecodeError as exc:
             raise GitHubClientError("GitHub returned invalid JSON.") from exc
 
+    def _send_json(self, path: str, method: str, payload: dict[str, Any]) -> Any:
+        body = self._request(
+            path,
+            accept="application/vnd.github+json",
+            method=method,
+            payload=payload,
+        )
+        if not body:
+            return {}
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise GitHubClientError("GitHub returned invalid JSON.") from exc
+
     def _get_text(self, path: str, accept: str) -> str:
         return self._request(path, accept=accept)
 
-    def _request(self, path: str, accept: str) -> str:
+    def _request(
+        self,
+        path: str,
+        accept: str,
+        method: str = "GET",
+        payload: dict[str, Any] | None = None,
+    ) -> str:
         url = f"{self._api_url}{path}"
         headers = {
             "Accept": accept,
             "User-Agent": "ShipGuard",
             "X-GitHub-Api-Version": "2022-11-28",
         }
+        data = None
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+            data = json.dumps(payload).encode("utf-8")
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
 
-        request = Request(url, headers=headers)
+        request = Request(url, data=data, headers=headers, method=method)
         try:
             with urlopen(request, timeout=30) as response:
                 return response.read().decode("utf-8", errors="replace")

@@ -26,6 +26,13 @@ from shipguard.llm_client import (
 from shipguard.models import ReleaseRiskReport
 from shipguard.project_memory import ProjectMemoryError, ProjectMemoryStore
 from shipguard.pr_url_parser import InvalidPRURLError, parse_github_pr_url
+from shipguard.pr_commenter import (
+    build_comment_plan,
+    clear_shipguard_comments,
+    post_inline_review_comments,
+    post_summary_comment,
+    save_comment_preview,
+)
 from shipguard.report_generator import (
     ReportArtifacts,
     ReportGenerationError,
@@ -128,6 +135,32 @@ def analyze_pr(
         "--html/--no-html",
         help="Generate a self-contained HTML Release Passport dashboard.",
     ),
+    post_comment: bool = typer.Option(
+        False,
+        "--post-comment",
+        help="Post or update a top-level ShipGuard PR summary comment.",
+    ),
+    post_inline_comments: bool = typer.Option(
+        False,
+        "--post-inline-comments",
+        help="Post high-confidence ShipGuard inline review comments.",
+    ),
+    max_inline_comments: int = typer.Option(
+        5,
+        "--max-inline-comments",
+        min=0,
+        help="Maximum inline review comments to generate.",
+    ),
+    dry_run_comments: bool = typer.Option(
+        False,
+        "--dry-run-comments",
+        help="Write a PR comment preview without posting to GitHub.",
+    ),
+    request_changes: bool = typer.Option(
+        False,
+        "--request-changes",
+        help="Post inline review comments as REQUEST_CHANGES instead of COMMENT.",
+    ),
 ) -> None:
     """Analyze release risk for a GitHub pull request."""
     try:
@@ -198,6 +231,40 @@ def analyze_pr(
             memory_store=memory_store,
             include_html=html,
         )
+        comment_plan = None
+        comment_result = None
+        if post_comment or post_inline_comments or dry_run_comments:
+            comment_plan = build_comment_plan(
+                pr_summary=pr_summary,
+                report=report,
+                artifacts=artifacts,
+                max_inline_comments=max_inline_comments,
+            )
+            save_comment_preview(
+                comment_plan,
+                report_dir=Path(artifacts.markdown_path).parent,
+            )
+            if not dry_run_comments:
+                if post_comment:
+                    summary_action = post_summary_comment(
+                        github_client=github_client,
+                        pr_ref=pr_ref,
+                        body=comment_plan.summary_body,
+                    )
+                else:
+                    summary_action = None
+                inline_count = 0
+                if post_inline_comments:
+                    inline_count = post_inline_review_comments(
+                        github_client=github_client,
+                        pr_summary=pr_summary,
+                        comments=comment_plan.inline_comments,
+                        request_changes=request_changes,
+                    )
+                comment_result = {
+                    "summary_action": summary_action,
+                    "inline_comments_posted": inline_count,
+                }
     except GitHubClientError as exc:
         typer.secho(f"GitHub error: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
@@ -216,6 +283,39 @@ def analyze_pr(
 
     _print_report(report)
     _print_artifacts(artifacts)
+    if comment_plan is not None:
+        _print_comment_preview(comment_plan.preview_path)
+    if comment_result is not None:
+        _print_comment_result(comment_result)
+
+
+@app.command("clear-comments")
+def clear_comments(
+    pr_url: str = typer.Option(
+        ...,
+        "--pr-url",
+        help="GitHub pull request URL whose ShipGuard comments should be cleared.",
+    ),
+) -> None:
+    """Remove ShipGuard-generated PR comments only."""
+    try:
+        pr_ref = parse_github_pr_url(pr_url)
+    except InvalidPRURLError as exc:
+        typer.secho(f"Invalid PR URL: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from exc
+
+    try:
+        github_client = GitHubClient.from_env()
+        result = clear_shipguard_comments(github_client, pr_ref)
+    except GitHubClientError as exc:
+        typer.secho(f"GitHub error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo("Cleared ShipGuard comments:")
+    typer.echo(f"- Summary comments deleted: {result.deleted_summary_comments}")
+    typer.echo(f"- Inline comments deleted: {result.deleted_inline_comments}")
+    for warning in result.warnings:
+        typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
 
 def _print_report(report: ReleaseRiskReport) -> None:
@@ -238,3 +338,20 @@ def _print_artifacts(artifacts: ReportArtifacts) -> None:
     if artifacts.html_path:
         typer.echo(f"- {artifacts.html_path}")
     typer.echo(f"- {artifacts.analysis_json_path}")
+
+
+def _print_comment_preview(preview_path: str | None) -> None:
+    if not preview_path:
+        return
+    typer.echo()
+    typer.echo("PR comment preview:")
+    typer.echo(f"- {preview_path}")
+
+
+def _print_comment_result(result: dict[str, object]) -> None:
+    typer.echo()
+    typer.echo("GitHub comments:")
+    summary_action = result.get("summary_action")
+    if summary_action:
+        typer.echo(f"- Summary comment {summary_action}.")
+    typer.echo(f"- Inline comments posted: {result.get('inline_comments_posted', 0)}")
