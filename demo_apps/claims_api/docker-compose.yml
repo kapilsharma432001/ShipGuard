@@ -1,0 +1,14 @@
+services:
+  claims-api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://claims:claims@db:5432/claims
+      CLAIMS_API_TOKEN: fake-local-token
+    ports:
+      - "8080:8080"
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: claims
+      POSTGRES_PASSWORD: claims
+      POSTGRES_DB: claims
