@@ -1,5 +1,5 @@
 # ShipGuard
-
+> ShipGuard is an experimental hackathon prototype. Do not run it on confidential code unless you are using an approved internal LLM endpoint and approved token handling.
 ShipGuard is an AI Release Risk Reasoner for pull requests and local release
 diffs. CI/CD tells you if the pipeline passed. ShipGuard tells you if the
 release is safe.
