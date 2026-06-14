@@ -78,8 +78,7 @@ questions.
 
 ### Install
 
-The intended PyPI distribution is `shipguard-ai`. After the `0.1.1` package
-release is published, install it with:
+ShipGuard is available from PyPI under the distribution name `shipguard-ai`:
 
 ```bash
 python -m pip install shipguard-ai
@@ -96,8 +95,7 @@ intentionally different:
 
 `shipguard-ai` is separate from any existing PyPI distribution named
 `shipguard`; installing this project should use the hyphenated distribution
-name. The project remains early-stage, and this repository preparation does not
-by itself confirm that the package has been published to PyPI.
+name. The project remains early-stage despite being available as a package.
 
 Maintainers can follow the [PyPI release guide](docs/pypi-release.md) for local
 build checks and Trusted Publishing setup.
