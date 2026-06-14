@@ -17,6 +17,8 @@ stable release process is established.
   Python versions.
 - Maintainer backlog guidance with suggested labels and actionable issue
   drafts.
+- A proposed, design-only GitHub Action integration covering safety,
+  permissions, artifacts, failures, and privacy.
 
 ### Changed
 

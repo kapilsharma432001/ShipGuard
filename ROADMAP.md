@@ -18,7 +18,9 @@ concrete issue drafts that maintainers can create as review capacity allows.
 
 ## Maintainer workflows
 
-- Provide a documented GitHub Actions workflow for advisory PR reviews.
+- Review the
+  [proposed GitHub Action design](docs/github-action-design.md) before
+  implementing advisory PR reviews.
 - Support repository-level configuration for risk priorities and comment
   behavior.
 - Improve repeat-run behavior, finding deduplication, and reviewer feedback.
