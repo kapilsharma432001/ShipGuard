@@ -1,0 +1,59 @@
+name: ShipGuard Release Risk Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  shipguard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted action source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
+      - name: Check model configuration
+        id: model-secrets
+        shell: bash
+        env:
+          SHIPGUARD_LLM_BASE_URL: ${{ secrets.SHIPGUARD_LLM_BASE_URL }}
+          SHIPGUARD_LLM_API_KEY: ${{ secrets.SHIPGUARD_LLM_API_KEY }}
+          SHIPGUARD_LLM_MODEL: ${{ secrets.SHIPGUARD_LLM_MODEL }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$SHIPGUARD_LLM_BASE_URL" \
+            && -n "$SHIPGUARD_LLM_API_KEY" \
+            && -n "$SHIPGUARD_LLM_MODEL" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run ShipGuard
+        if: ${{ steps.model-secrets.outputs.available == 'true' }}
+        uses: ./
+        with:
+          pr_url: ${{ github.event.pull_request.html_url }}
+          github_token: ${{ github.token }}
+          upload_artifacts: "true"
+          html: "true"
+          dry_run_comments: "false"
+          post_comment: "false"
+          post_inline_comments: "false"
+          request_changes: "false"
+        env:
+          SHIPGUARD_LLM_BASE_URL: ${{ secrets.SHIPGUARD_LLM_BASE_URL }}
+          SHIPGUARD_LLM_API_KEY: ${{ secrets.SHIPGUARD_LLM_API_KEY }}
+          SHIPGUARD_LLM_MODEL: ${{ secrets.SHIPGUARD_LLM_MODEL }}
+
+      - name: Explain skipped ShipGuard review
+        if: ${{ steps.model-secrets.outputs.available != 'true' }}
+        shell: bash
+        run: |
+          echo "ShipGuard review skipped: all three SHIPGUARD_LLM_* secrets must be configured."

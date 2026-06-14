@@ -178,6 +178,10 @@ Release Passport artifacts. Comment posting and blocking behavior are not
 implemented. See [GitHub Action usage](docs/github-action-usage.md) for current
 limitations, required secrets, permissions, and release status.
 
+This repository also includes an optional, secret-gated dogfooding workflow for
+advisory Release Passport artifacts. It skips model-backed review when the
+required model secrets are unavailable.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, development checks,

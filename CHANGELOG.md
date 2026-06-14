@@ -23,6 +23,8 @@ stable release process is established.
   uploads Release Passport artifacts.
 - GitHub Action usage documentation covering secrets, permissions, limitations,
   artifact privacy, and troubleshooting.
+- A read-only, secret-gated dogfooding workflow for advisory pull request
+  Release Passport artifacts.
 
 ### Changed
 
