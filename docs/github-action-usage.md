@@ -15,6 +15,25 @@ The wrapper follows the safety model in the
 [GitHub Action design](github-action-design.md). It does not prove that a
 release is safe and does not replace CI or maintainer review.
 
+## Dogfooding in this repository
+
+ShipGuard includes an optional dogfooding workflow at
+`.github/workflows/shipguard.yml`. It uses the local root action to review pull
+requests and upload advisory Release Passport artifacts.
+
+The workflow runs model-backed analysis only when
+`SHIPGUARD_LLM_BASE_URL`, `SHIPGUARD_LLM_API_KEY`, and
+`SHIPGUARD_LLM_MODEL` are all configured. When any secret is unavailable, it
+skips the action and prints a short explanation without printing secret values.
+Fork pull requests normally do not receive repository secrets, so they usually
+take this skip path.
+
+For safety, the workflow checks out the pull request base SHA before invoking
+`uses: ./`. ShipGuard then fetches the proposed PR changes through the GitHub
+API. This avoids executing a contributor-modified local action with model
+secrets. The workflow uses read-only repository and pull request permissions,
+does not post comments, and does not use `pull_request_target`.
+
 ## What works today
 
 The initial wrapper:
