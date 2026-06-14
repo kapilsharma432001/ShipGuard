@@ -27,6 +27,8 @@ stable release process is established.
   Release Passport artifacts.
 - Documentation for verifying the dogfooding workflow with a small pull
   request.
+- Proof and sanitized examples covering the PyPI package, GitHub Action, and
+  successful dogfooding artifact generation.
 
 ### Changed
 

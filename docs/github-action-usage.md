@@ -13,6 +13,9 @@ The wrapper follows the safety model in the
 [GitHub Action design](github-action-design.md). It does not prove that a
 release is safe and does not replace CI or maintainer review.
 
+See [Proof and examples](proof-and-examples.md) for public release evidence, a
+sanitized workflow example, and the limits of the current dogfooding evidence.
+
 ## GitHub Action versus PyPI installation
 
 GitHub Action and CLI installation are separate distribution paths:

@@ -208,6 +208,9 @@ This repository also includes an optional, secret-gated dogfooding workflow for
 advisory Release Passport artifacts. It skips model-backed review when the
 required model secrets are unavailable.
 
+See [Proof and examples](docs/proof-and-examples.md) for public release,
+integration, and sanitized dogfooding evidence.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, development checks,
