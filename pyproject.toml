@@ -1,18 +1,47 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shipguard"
-version = "0.1.0"
+name = "shipguard-ai"
+version = "0.1.1"
 description = "AI-powered release risk reviewer for pull requests"
 readme = "README.md"
 requires-python = ">=3.11"
+authors = [
+    { name = "Kapil Sharma" },
+]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = [
+    "release-risk",
+    "pull-requests",
+    "code-review",
+    "developer-tools",
+    "cli",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Version Control :: Git",
+]
 dependencies = [
     "openai>=1.30.0",
     "pydantic>=2.7.0",
     "typer>=0.12.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/kapilsharma432001/ShipGuard"
+Repository = "https://github.com/kapilsharma432001/ShipGuard"
+Issues = "https://github.com/kapilsharma432001/ShipGuard/issues"
+Documentation = "https://github.com/kapilsharma432001/ShipGuard#readme"
 
 [project.scripts]
 shipguard = "shipguard.cli:app"
