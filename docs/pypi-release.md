@@ -20,11 +20,20 @@ This project should not be published under the existing or unavailable
 ## Versioning
 
 - `v0.1.0` was the first GitHub release and GitHub Action release.
-- `0.1.1` is the first PyPI-ready package version.
+- `v0.1.1` is the first package release published to PyPI as `shipguard-ai`.
 
-Preparing metadata and automation does not mean `0.1.1` has already been
-published. Confirm the PyPI project page and workflow result before documenting
-a successful release.
+## Verify the published package
+
+Install and verify the published distribution in a clean environment:
+
+```bash
+python -m pip install shipguard-ai
+shipguard --help
+python -c "import shipguard; print('shipguard import works')"
+```
+
+These commands confirm the distinction between the `shipguard-ai` distribution,
+the `shipguard` import package, and the `shipguard` CLI command.
 
 ## Local build checks
 
