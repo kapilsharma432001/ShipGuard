@@ -2,13 +2,15 @@
 
 ## Status
 
-**Proposed / design-only.** The action described here is not implemented or
-available for use.
+**Partially implemented.** The initial composite wrapper and artifact upload
+support now exist at the repository root. Comment posting, inline comments,
+blocking behavior, and risk-based failure policy remain design-only.
 
 Related GitHub issue: [#14](https://github.com/kapilsharma432001/ShipGuard/issues/14)
 
-This document records a possible interface and safety model for review before
-implementation begins. Names, defaults, and packaging may change.
+See [GitHub Action usage](github-action-usage.md) for the implemented input
+surface and current release status. This document continues to record the
+broader safety model and future interface; names and behavior may still change.
 
 ## Goals
 
@@ -38,13 +40,14 @@ The proposed action is:
 - not allowed to send private code to a model endpoint unless a repository
   maintainer explicitly configures and approves that endpoint.
 
-Publishing a GitHub Action is also outside the scope of this design change.
+Publishing and maintaining a `v0` tag or release remains a separate maintainer
+step.
 
 ## Proposed user experience
 
-The following workflow is an interface example only. The
-`kapilsharma432001/ShipGuard/action@v0` reference does not exist today and must
-not be copied into a production workflow.
+The following workflow matches the initial wrapper, but the
+`kapilsharma432001/ShipGuard@v0` reference is unavailable until a corresponding
+Git tag or release exists.
 
 ```yaml
 name: ShipGuard Release Risk Review
@@ -63,9 +66,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Proposed interface. This action is not currently available.
+      # Available only after a v0 tag or release is published.
       - name: Run ShipGuard
-        uses: kapilsharma432001/ShipGuard/action@v0
+        uses: kapilsharma432001/ShipGuard@v0
         with:
           pr_url: ${{ github.event.pull_request.html_url }}
           post_comment: "false"
@@ -90,21 +93,22 @@ because a token happens to be available.
 
 ## Inputs
 
-All inputs below are proposed. String values follow GitHub Action conventions;
-the wrapper would validate and convert them before invoking the existing CLI.
+The implemented inputs are documented in
+[GitHub Action usage](github-action-usage.md). The broader table below retains
+future design ideas; inputs absent from the usage guide are not implemented.
 
 | Input | Purpose | Proposed default | Safety notes |
 | --- | --- | --- | --- |
-| `pr_url` | Pull request URL to analyze. | Auto-detect from a `pull_request` event; otherwise required for PR analysis. | Validate the host and path before making requests. Do not accept arbitrary API hosts implicitly. |
+| `pr_url` | Pull request URL to analyze. | Required. | Validate the host and path before making requests. Do not accept arbitrary API hosts implicitly. |
 | `repo` | Checked-out repository path for local validation or future local-diff mode. | `"."` | Resolve within `GITHUB_WORKSPACE` by default and reject surprising paths. |
 | `use_memory` | Build and include project memory from the PR base SHA. | `"true"` | Memory may contain repository structure and extracted code context. |
 | `rebuild_memory` | Ignore cached memory and rebuild it for the current base SHA. | `"false"` | Rebuilds may increase API and model usage. |
 | `max_diff_chars` | Maximum PR diff characters supplied to analysis. | `"120000"` | Truncation must be visible in reports; omitted evidence must not be treated as safe. |
-| `html` | Generate `release_passport.html`. | `"false"` | HTML may contain repository and risk context and should be handled as sensitive. |
+| `html` | Generate `release_passport.html`. | `"true"` in the initial action. | HTML may contain repository and risk context and should be handled as sensitive. |
 | `upload_artifacts` | Upload generated reports as workflow artifacts. | `"true"` | Artifact names, contents, and retention must follow repository policy. |
-| `post_comment` | Create or update an advisory PR summary comment. | `"false"` | Requires explicit opt-in and `pull-requests: write`. |
-| `post_inline_comments` | Post conservative comments on supported changed lines. | `"false"` | Higher-noise mutation; should remain experimental and separately enabled. |
-| `request_changes` | Use a blocking `REQUEST_CHANGES` review for inline comments. | `"false"` | Must require `post_inline_comments: "true"` and a separate explicit opt-in. |
+| `post_comment` | Create or update an advisory PR summary comment. | `"false"` | Accepted for compatibility but `"true"` fails until posting is implemented. |
+| `post_inline_comments` | Post conservative comments on supported changed lines. | `"false"` | Accepted for compatibility but `"true"` fails until posting is implemented. |
+| `request_changes` | Use a blocking `REQUEST_CHANGES` review for inline comments. | `"false"` | Accepted for compatibility but `"true"` fails until blocking behavior is implemented. |
 | `max_inline_comments` | Limit inline comments per run. | `"5"` | Enforce a small upper bound to avoid review noise. |
 | `fail_on` | Control whether tool errors or risk findings fail the action. | `"tool_error"` | Risk findings remain advisory by default. Proposed values need design approval. |
 | `dry_run_comments` | Generate `pr_comment_preview.md` without posting. | `"false"` | Preview generation must not require write permission. |
@@ -252,25 +256,24 @@ outputs.
 
 ## Implementation plan
 
-### Phase 1: Documentation and design
+### Phase 1: Documentation and design - completed
 
 - Review this interface, threat boundaries, permission model, and open
   questions.
 - Decide packaging, versioning, ownership, and compatibility expectations.
 
-### Phase 2: Composite action wrapper around the existing CLI
+### Phase 2: Composite action wrapper around the existing CLI - implemented
 
 - Install a pinned or checked-out ShipGuard version.
 - Validate inputs and map them to existing CLI flags.
 - Support analysis-only behavior before any GitHub mutation.
-- Add wrapper tests without model or GitHub network calls.
+- Continue improving wrapper checks without model or GitHub network calls.
 
-### Phase 3: Artifact upload support
+### Phase 3: Artifact upload support - initial support implemented
 
 - Collect only generated Release Passport files.
-- Use the official GitHub artifact action or an explicitly documented
-  equivalent.
-- Document artifact names, missing-file behavior, and retention.
+- Use `actions/upload-artifact@v4` for the current report path.
+- Continue documenting artifact names, missing-file behavior, and retention.
 
 ### Phase 4: Optional summary comment support
 
@@ -297,21 +300,24 @@ bundled into the initial wrapper implementation.
 
 ## Open questions
 
-- Should the action live inside this repository or in a separate
-  `shipguard-action` repository?
-- Should the default mode call the model, or only validate configuration until
-  model use is explicitly enabled?
+- The initial action lives at the root of this repository. Should it remain
+  here as the interface grows, or move to a separate `shipguard-action`
+  repository later?
+- The initial action runs model-backed analysis. Should a separate,
+  secret-free preflight mode be added?
 - Which values should `fail_on` support, and how should they map to ShipGuard
   decisions and risk levels?
 - How should project memory behave on ephemeral runners: rebuild every run,
   use GitHub cache, download a prior artifact, or remain disabled initially?
 - How should summary and inline comments be deduplicated across reruns, force
   pushes, and changed PR head SHAs?
-- Should reports be uploaded as artifacts by default?
+- The initial action uploads reports by default. Should that default change
+  after practical workflow feedback?
 - Should artifact upload failure fail the job when `fail_on: "never"`?
 - How should the action behave for fork pull requests where model secrets are
   intentionally unavailable?
-- Should `SHIPGUARD_GITHUB_TOKEN` remain supported, or should the action accept
-  only `GITHUB_TOKEN` and pass it to the CLI internally?
+- The initial action accepts `github_token` and maps it to
+  `SHIPGUARD_GITHUB_TOKEN`. Should the underlying CLI eventually recognize
+  `GITHUB_TOKEN` directly?
 - What action outputs can be considered stable enough for downstream workflow
   conditions?

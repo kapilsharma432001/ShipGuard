@@ -168,8 +168,15 @@ are welcome.
 Near-term work focuses on analysis reliability, maintainer workflows,
 integrations, evidence quality, and clearer examples. See [ROADMAP.md](ROADMAP.md)
 for the directional roadmap and the
-[proposed GitHub Action design](docs/github-action-design.md) for a future
-advisory integration. Roadmap items are not release commitments.
+[GitHub Action design](docs/github-action-design.md) for rationale and future
+phases. Roadmap items are not release commitments.
+
+## GitHub Action
+
+An early-stage composite action wrapper can run advisory PR analysis and upload
+Release Passport artifacts. Comment posting and blocking behavior are not
+implemented. See [GitHub Action usage](docs/github-action-usage.md) for current
+limitations, required secrets, permissions, and release status.
 
 ## Contributing
 

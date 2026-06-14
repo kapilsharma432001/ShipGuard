@@ -72,8 +72,11 @@ unmilestoned unless they block a planned release.
 [proposed GitHub Action design](docs/github-action-design.md), created for
 GitHub issue #14.
 
-**Problem:** ShipGuard has repository CI, but there is no documented design for
-running ShipGuard as an advisory review step in another repository.
+**Status:** The design and initial advisory wrapper are implemented. Comment
+posting, stricter modes, and broader evaluation remain future work.
+
+**Problem:** Maintainers need an agreed interface for running ShipGuard as an
+advisory review step in another repository.
 
 **Expected outcome:** An agreed integration design covering invocation,
 permissions, configuration, artifacts, failure behavior, and whether comments
@@ -85,8 +88,9 @@ remain opt-in.
 - Keep analysis advisory by default and require explicit opt-in for comments.
 - Define how forks and missing credentials behave without exposing secrets.
 
-**Notes for contributors:** This issue is design-only. Do not add a workflow or
-publish an action until maintainers approve the interface.
+**Notes for contributors:** Treat the design and usage documents as the current
+interface. Propose later phases separately rather than adding mutation or
+blocking behavior to the initial wrapper.
 
 ### 2. Document CI artifact upload for Release Passport reports
 

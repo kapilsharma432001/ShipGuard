@@ -1,0 +1,194 @@
+name: ShipGuard Release Risk Review
+description: Run ShipGuard on a pull request and generate advisory release-risk artifacts.
+
+inputs:
+  pr_url:
+    description: GitHub pull request URL to analyze.
+    required: true
+  python_version:
+    description: Python version used to run ShipGuard.
+    required: false
+    default: "3.11"
+  use_memory:
+    description: Build and include project memory from the pull request base SHA.
+    required: false
+    default: "true"
+  rebuild_memory:
+    description: Rebuild project memory for the current pull request base SHA.
+    required: false
+    default: "false"
+  max_diff_chars:
+    description: Maximum pull request diff characters supplied to ShipGuard.
+    required: false
+    default: "120000"
+  html:
+    description: Generate the self-contained HTML Release Passport.
+    required: false
+    default: "true"
+  upload_artifacts:
+    description: Upload generated Release Passport files as a workflow artifact.
+    required: false
+    default: "true"
+  artifact_name:
+    description: Name of the uploaded Release Passport artifact.
+    required: false
+    default: "shipguard-release-passport"
+  dry_run_comments:
+    description: Generate a pull request comment preview without posting it.
+    required: false
+    default: "false"
+  post_comment:
+    description: Reserved for future summary comment support; true is not supported yet.
+    required: false
+    default: "false"
+  post_inline_comments:
+    description: Reserved for future inline comment support; true is not supported yet.
+    required: false
+    default: "false"
+  request_changes:
+    description: Reserved for future blocking review support; true is not supported yet.
+    required: false
+    default: "false"
+  github_token:
+    description: Optional token for GitHub API access. Required for private repositories or higher rate limits.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Validate ShipGuard inputs
+      shell: bash
+      env:
+        INPUT_PR_URL: ${{ inputs.pr_url }}
+        INPUT_PYTHON_VERSION: ${{ inputs.python_version }}
+        INPUT_USE_MEMORY: ${{ inputs.use_memory }}
+        INPUT_REBUILD_MEMORY: ${{ inputs.rebuild_memory }}
+        INPUT_MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
+        INPUT_HTML: ${{ inputs.html }}
+        INPUT_UPLOAD_ARTIFACTS: ${{ inputs.upload_artifacts }}
+        INPUT_ARTIFACT_NAME: ${{ inputs.artifact_name }}
+        INPUT_DRY_RUN_COMMENTS: ${{ inputs.dry_run_comments }}
+        INPUT_POST_COMMENT: ${{ inputs.post_comment }}
+        INPUT_POST_INLINE_COMMENTS: ${{ inputs.post_inline_comments }}
+        INPUT_REQUEST_CHANGES: ${{ inputs.request_changes }}
+      run: |
+        set -euo pipefail
+
+        validate_boolean() {
+          local name="$1"
+          local value="$2"
+          if [[ "$value" != "true" && "$value" != "false" ]]; then
+            echo "::error title=Invalid ShipGuard input::$name must be \"true\" or \"false\"."
+            exit 2
+          fi
+        }
+
+        if [[ -z "$INPUT_PR_URL" ]]; then
+          echo "::error title=Missing ShipGuard input::pr_url is required."
+          exit 2
+        fi
+
+        if [[ -z "$INPUT_PYTHON_VERSION" ]]; then
+          echo "::error title=Invalid ShipGuard input::python_version must not be empty."
+          exit 2
+        fi
+
+        if [[ ! "$INPUT_MAX_DIFF_CHARS" =~ ^[1-9][0-9]*$ ]]; then
+          echo "::error title=Invalid ShipGuard input::max_diff_chars must be a positive integer."
+          exit 2
+        fi
+
+        validate_boolean "use_memory" "$INPUT_USE_MEMORY"
+        validate_boolean "rebuild_memory" "$INPUT_REBUILD_MEMORY"
+        validate_boolean "html" "$INPUT_HTML"
+        validate_boolean "upload_artifacts" "$INPUT_UPLOAD_ARTIFACTS"
+        validate_boolean "dry_run_comments" "$INPUT_DRY_RUN_COMMENTS"
+        validate_boolean "post_comment" "$INPUT_POST_COMMENT"
+        validate_boolean "post_inline_comments" "$INPUT_POST_INLINE_COMMENTS"
+        validate_boolean "request_changes" "$INPUT_REQUEST_CHANGES"
+
+        if [[ "$INPUT_UPLOAD_ARTIFACTS" == "true" && -z "$INPUT_ARTIFACT_NAME" ]]; then
+          echo "::error title=Invalid ShipGuard input::artifact_name must not be empty when artifact upload is enabled."
+          exit 2
+        fi
+
+        if [[ "$INPUT_POST_COMMENT" == "true" ]]; then
+          echo "::error title=Unsupported ShipGuard input::post_comment=true is not implemented in the initial advisory action."
+          exit 2
+        fi
+
+        if [[ "$INPUT_POST_INLINE_COMMENTS" == "true" ]]; then
+          echo "::error title=Unsupported ShipGuard input::post_inline_comments=true is not implemented in the initial advisory action."
+          exit 2
+        fi
+
+        if [[ "$INPUT_REQUEST_CHANGES" == "true" ]]; then
+          echo "::error title=Unsupported ShipGuard input::request_changes=true is not implemented in the initial advisory action."
+          exit 2
+        fi
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install ShipGuard
+      shell: bash
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip
+        python -m pip install -e "${{ github.action_path }}"
+
+    - name: Run advisory release-risk review
+      shell: bash
+      env:
+        INPUT_PR_URL: ${{ inputs.pr_url }}
+        INPUT_USE_MEMORY: ${{ inputs.use_memory }}
+        INPUT_REBUILD_MEMORY: ${{ inputs.rebuild_memory }}
+        INPUT_MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
+        INPUT_HTML: ${{ inputs.html }}
+        INPUT_DRY_RUN_COMMENTS: ${{ inputs.dry_run_comments }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -euo pipefail
+
+        unset SHIPGUARD_GITHUB_TOKEN
+        if [[ -n "$INPUT_GITHUB_TOKEN" ]]; then
+          export SHIPGUARD_GITHUB_TOKEN="$INPUT_GITHUB_TOKEN"
+        fi
+
+        shipguard_command=(
+          python -m shipguard analyze-pr
+          --pr-url "$INPUT_PR_URL"
+          --max-diff-chars "$INPUT_MAX_DIFF_CHARS"
+        )
+
+        if [[ "$INPUT_USE_MEMORY" == "true" ]]; then
+          shipguard_command+=(--use-memory)
+        else
+          shipguard_command+=(--no-memory)
+        fi
+
+        if [[ "$INPUT_REBUILD_MEMORY" == "true" ]]; then
+          shipguard_command+=(--rebuild-memory)
+        fi
+
+        if [[ "$INPUT_HTML" == "true" ]]; then
+          shipguard_command+=(--html)
+        fi
+
+        if [[ "$INPUT_DRY_RUN_COMMENTS" == "true" ]]; then
+          shipguard_command+=(--dry-run-comments)
+        fi
+
+        "${shipguard_command[@]}"
+
+    - name: Upload Release Passport artifacts
+      if: ${{ inputs.upload_artifacts == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: .shipguard/reports/**
+        if-no-files-found: warn
+        include-hidden-files: true

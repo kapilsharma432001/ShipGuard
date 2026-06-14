@@ -19,6 +19,10 @@ stable release process is established.
   drafts.
 - A proposed, design-only GitHub Action integration covering safety,
   permissions, artifacts, failures, and privacy.
+- An initial advisory composite GitHub Action wrapper that runs PR analysis and
+  uploads Release Passport artifacts.
+- GitHub Action usage documentation covering secrets, permissions, limitations,
+  artifact privacy, and troubleshooting.
 
 ### Changed
 
