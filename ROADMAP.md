@@ -4,6 +4,9 @@ ShipGuard is an early-stage project. This roadmap is directional and does not
 promise release dates or compatibility guarantees. Priorities may change based
 on maintainer capacity, contributor interest, and evidence from real workflows.
 
+See [MAINTAINER_BACKLOG.md](MAINTAINER_BACKLOG.md) for label guidance and
+concrete issue drafts that maintainers can create as review capacity allows.
+
 ## Near term
 
 - Make installation and first-run errors clearer.

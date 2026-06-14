@@ -68,6 +68,10 @@ Before opening an issue:
 For feature requests, describe the maintainer problem first. A focused use case
 is more useful than a broad request for "more AI" or a complete redesign.
 
+Maintainers and contributors can use
+[MAINTAINER_BACKLOG.md](MAINTAINER_BACKLOG.md) for label guidance and scoped
+issue drafts. The GitHub issue should become the source of truth once created.
+
 ## Opening a pull request
 
 1. Keep the change focused on one problem.
