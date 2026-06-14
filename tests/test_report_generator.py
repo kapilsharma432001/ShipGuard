@@ -32,7 +32,8 @@ class ReportGeneratorTests(unittest.TestCase):
             html = html_path.read_text(encoding="utf-8")
             self.assertIn("ShipGuard Release Passport", html)
             self.assertIn(
-                "CI/CD tells you if the pipeline passed. ShipGuard tells you if the release is safe.",
+                "CI tells you whether tests passed. ShipGuard helps identify "
+                "whether the release looks risky.",
                 html,
             )
             self.assertIn("<style>", html)

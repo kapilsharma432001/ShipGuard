@@ -39,7 +39,7 @@ from shipguard.report_generator import (
     generate_release_passport,
 )
 
-APP_HELP = """AI Release Risk Reasoner.
+APP_HELP = """AI-powered release risk reviewer for pull requests.
 
 Common commands:
 

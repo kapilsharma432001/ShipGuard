@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "shipguard"
 version = "0.1.0"
-description = "AI Release Risk Reasoner CLI"
+description = "AI-powered release risk reviewer for pull requests"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
