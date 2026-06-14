@@ -78,6 +78,32 @@ questions.
 
 ### Install
 
+The intended PyPI distribution is `shipguard-ai`. After the `0.1.1` package
+release is published, install it with:
+
+```bash
+python -m pip install shipguard-ai
+```
+
+The PyPI distribution name, Python import package, and CLI command are
+intentionally different:
+
+| Purpose | Name |
+| --- | --- |
+| PyPI distribution | `shipguard-ai` |
+| Python import namespace | `shipguard` |
+| CLI command | `shipguard` |
+
+`shipguard-ai` is separate from any existing PyPI distribution named
+`shipguard`; installing this project should use the hyphenated distribution
+name. The project remains early-stage, and this repository preparation does not
+by itself confirm that the package has been published to PyPI.
+
+Maintainers can follow the [PyPI release guide](docs/pypi-release.md) for local
+build checks and Trusted Publishing setup.
+
+For development from source:
+
 ```bash
 git clone https://github.com/kapilsharma432001/ShipGuard.git
 cd ShipGuard
@@ -150,7 +176,9 @@ python -m shipguard analyze-pr \
 
 ShipGuard is an early-stage CLI project and is under active development.
 
-- The package metadata currently identifies version `0.1.0`.
+- The package metadata currently identifies distribution `shipguard-ai`
+  version `0.1.1`.
+- The import namespace and CLI entry point remain `shipguard`.
 - The CLI supports local diffs and GitHub pull requests.
 - Model-backed analysis requires a user-configured OpenAI-compatible endpoint.
 - Project memory and generated reports are stored locally under `.shipguard/`.

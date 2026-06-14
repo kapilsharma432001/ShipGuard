@@ -27,8 +27,14 @@ stable release process is established.
   Release Passport artifacts.
 - Documentation for verifying the dogfooding workflow with a small pull
   request.
+- A PyPI Trusted Publishing workflow that builds, checks, and publishes package
+  distributions without an API token.
+- PyPI release documentation for local validation and repository setup.
 
 ### Changed
 
 - Reframed the README around pull request release-risk review, current
   capabilities, limitations, and supported workflows.
+- Changed the intended PyPI distribution name to `shipguard-ai` and bumped the
+  package version to `0.1.1`, while preserving the `shipguard` import namespace
+  and CLI command.

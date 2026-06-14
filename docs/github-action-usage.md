@@ -6,14 +6,25 @@ ShipGuard includes an initial, early-stage composite GitHub Action wrapper. It
 runs model-backed pull request analysis in advisory mode and can upload the
 generated Release Passport files.
 
-The root `action.yml` exists in the repository, but
-`kapilsharma432001/ShipGuard@v0` will not be a stable usable reference until a
-corresponding Git tag or release is published. Until then, this document
-describes the intended first release rather than a generally available action.
+The root `action.yml` is available through the repository's `v0` action tag.
+The first GitHub/action release is `v0.1.0`.
 
 The wrapper follows the safety model in the
 [GitHub Action design](github-action-design.md). It does not prove that a
 release is safe and does not replace CI or maintainer review.
+
+## GitHub Action versus PyPI installation
+
+GitHub Action and CLI installation are separate distribution paths:
+
+- GitHub Action workflows use `kapilsharma432001/ShipGuard@v0`.
+- CLI users install the `shipguard-ai` PyPI distribution with
+  `python -m pip install shipguard-ai`.
+- Python code continues to import the `shipguard` package.
+- The installed console command remains `shipguard`.
+
+Installing `shipguard-ai` does not install or configure the GitHub Action, and
+referencing the GitHub Action does not publish or install a PyPI release.
 
 ## Dogfooding in this repository
 
@@ -116,10 +127,6 @@ Do not grant `pull-requests: write` for this version. Artifact upload uses the
 workflow artifact service and does not require broad repository write access.
 
 ## Example workflow
-
-The following example will work only after a `v0` Git tag or release points to
-a revision containing the root action. It is not evidence that `v0` has already
-been published.
 
 ```yaml
 name: ShipGuard Release Risk Review
