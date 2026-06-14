@@ -15,6 +15,8 @@ stable release process is established.
 - A maintainer-oriented roadmap.
 - GitHub Actions validation for tests, compilation, and CLI help on supported
   Python versions.
+- Maintainer backlog guidance with suggested labels and actionable issue
+  drafts.
 
 ### Changed
 
