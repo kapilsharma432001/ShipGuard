@@ -85,8 +85,8 @@ def _build_analysis_object(
     return {
         "title": "ShipGuard Release Passport",
         "tagline": (
-            "CI/CD tells you if the pipeline passed. ShipGuard tells you if "
-            "the release is safe."
+            "CI tells you whether tests passed. ShipGuard helps identify "
+            "whether the release looks risky."
         ),
         "generated_at": generated_at,
         "repository": f"{pr_summary.owner}/{pr_summary.repo}",

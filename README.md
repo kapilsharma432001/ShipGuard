@@ -1,56 +1,98 @@
 # ShipGuard
-> ShipGuard is an experimental hackathon prototype. Do not run it on confidential code unless you are using an approved internal LLM endpoint and approved token handling.
-ShipGuard is an AI Release Risk Reasoner for pull requests and local release
-diffs. CI/CD tells you if the pipeline passed. ShipGuard tells you if the
-release is safe.
 
-ShipGuard reads real change context, sends it to an OpenAI-compatible LLM, and
-returns a structured release risk report with a readiness score, decision, risk
-level, likely breakages, and CI blind spots. For GitHub PRs it can also build
-repository-level project memory and generate a Release Passport in Markdown,
-HTML, and JSON.
+**AI-powered release risk reviewer for pull requests.**
 
-## Capabilities
+CI tells you whether tests passed. ShipGuard helps identify whether the release
+looks risky.
 
-- Local git diff analysis with `python -m shipguard analyze --repo ./sample-app`
-- GitHub PR URL analysis with `python -m shipguard analyze-pr --pr-url <PR_URL>`
-- OpenAI-compatible LLM integration for Tiger AI Gateway or any compatible
-  endpoint
-- Smart PR diff packing that prioritizes risky files before lower-risk files
-- Generic repository memory built from the PR base SHA
-- Deterministic project signal extraction for env vars, API routes, DB tables,
-  classes/functions, imports, migration operations, dependencies, security
-  signals, and test framework hints
-- Release Passport report generation:
-  - `release_passport.md`
-  - `release_passport.html` when `--html` is passed
-  - `analysis.json`
-- GitHub PR comments:
-  - top-level release review summary
-  - optional inline review comments on high-confidence changed lines
-  - dry-run comment preview
-  - safe clearing of ShipGuard-generated comments only
+ShipGuard reviews local git diffs and GitHub pull requests for release-sensitive
+changes, then produces a structured risk report with likely breakages, CI blind
+spots, missing evidence, rollout considerations, and rollback considerations.
 
-## Requirements
+ShipGuard is an early-stage open-source project under active development. Its
+output is advisory: it does not prove that a release is safe, replace CI,
+replace security review, or replace maintainer judgment.
 
-- Python 3.11+
+> **Data handling:** ShipGuard sends selected code and diff context to the
+> OpenAI-compatible endpoint you configure. Do not use it with confidential
+> code unless that endpoint and your token-handling process are approved for
+> the data involved.
+
+## What ShipGuard does
+
+ShipGuard can:
+
+- analyze the current diff in a local git repository;
+- fetch and analyze a GitHub pull request;
+- prioritize release-sensitive files when a PR is too large for one prompt;
+- build reusable project context from the PR base commit;
+- identify evidence related to API contracts, database migrations,
+  configuration, dependencies, security-sensitive code, and tests;
+- generate Markdown, JSON, and optional self-contained HTML reports; and
+- preview or post a PR summary and conservative inline review comments.
+
+ShipGuard reports risk signals and missing evidence. It does not deploy code,
+run migrations, execute a rollback, or guarantee production behavior.
+
+## Why it exists
+
+Production incidents can happen even when CI is green. Tests may pass while a
+change still introduces:
+
+- backward-incompatible API or schema behavior;
+- a database migration that locks, fails, or cannot be rolled back safely;
+- a new environment variable that is missing from deployment configuration;
+- a dependency or authentication change with a wider blast radius;
+- a rollout that assumes production data looks like test data;
+- missing regression, compatibility, migration, or rollback tests; or
+- operational risk that is visible in the diff but outside the test suite.
+
+ShipGuard gives maintainers a release-oriented review pass focused on those
+questions.
+
+## Key features
+
+- **Local diff review:** Analyze a working tree without opening a PR.
+- **GitHub PR review:** Fetch PR metadata and changed-file patches from a PR URL.
+- **Risk-aware diff packing:** Prioritize migrations, APIs, config, deployment,
+  security, dependency, business logic, and test files.
+- **Project memory:** Build repository context from the PR base SHA and store it
+  locally for later reviews.
+- **Structured findings:** Return a readiness score, decision, risk level,
+  likely breakages, and CI blind spots.
+- **Release Passport artifacts:** Write Markdown and JSON reports, with optional
+  self-contained HTML.
+- **Maintainer-friendly comments:** Preview, create, update, and selectively
+  clear ShipGuard-generated GitHub comments.
+- **OpenAI-compatible endpoint support:** Use a model endpoint selected and
+  operated by the user.
+
+## Quick start
+
+### Requirements
+
+- Python 3.11 or newer
 - Git for local repository analysis
-- Network access for GitHub PR analysis and LLM calls
-- A configured OpenAI-compatible LLM endpoint
+- Network access for GitHub PR analysis and model calls
+- An OpenAI-compatible model endpoint
 
-Install the project in editable mode:
+### Install
 
 ```bash
+git clone https://github.com/kapilsharma432001/ShipGuard.git
+cd ShipGuard
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
 ```
 
-## Configuration
+On systems where `python` does not point to Python 3, use `python3` for the
+virtual-environment creation command.
 
-ShipGuard uses environment variables only. Do not hardcode secrets.
+### Configure
 
-Required for all LLM-backed analysis:
+ShipGuard reads configuration from environment variables. Never commit real
+credentials.
 
 ```bash
 export SHIPGUARD_LLM_BASE_URL="https://your-openai-compatible-endpoint/v1"
@@ -58,120 +100,137 @@ export SHIPGUARD_LLM_API_KEY="your-api-key"
 export SHIPGUARD_LLM_MODEL="your-model-name"
 ```
 
-Optional for GitHub PR analysis:
+GitHub authentication is optional for public PR reads and required for private
+repositories, higher API limits, and posting or clearing comments:
 
 ```bash
 export SHIPGUARD_GITHUB_TOKEN="your-github-token"
 ```
 
-Public repositories can work without `SHIPGUARD_GITHUB_TOKEN`, but private
-repositories and higher rate limits require it.
+You can instead copy `.env.example` to a local `.env` file in the directory
+where you run ShipGuard. `.env` and `.env.*` are ignored by git, while
+`.env.example` remains tracked.
 
-You can also create a local `.env` file in the directory where you run
-ShipGuard:
+### Run
 
-```bash
-SHIPGUARD_LLM_BASE_URL=https://your-openai-compatible-endpoint/v1
-SHIPGUARD_LLM_API_KEY=your-api-key
-SHIPGUARD_LLM_MODEL=your-model-name
-SHIPGUARD_GITHUB_TOKEN=your-github-token
-```
-
-Use `.env.example` as the template. `.env` and `.env.*` are ignored by git, and
-`.env.example` is intentionally allowed.
-
-## CLI Overview
-
-Show available commands:
+Show the available commands:
 
 ```bash
 python -m shipguard --help
 ```
 
-Commands:
-
-- `analyze`: analyze a local git repository diff
-- `analyze-pr`: analyze a GitHub pull request URL
-- `clear-comments`: remove ShipGuard-generated comments from a PR
-
-## Local Git Diff Analysis
-
-Run:
+Analyze a local repository diff:
 
 ```bash
 python -m shipguard analyze --repo ./sample-app
 ```
 
-ShipGuard validates that the path exists and is a git repository, then reads:
-
-- current branch
-- latest commit hash when available
-- changed file names
-- changed file extensions
-- `git diff --stat`
-- full git diff up to the configured limit
-- whether the repo has uncommitted changes
-
-Default local diff context limit:
+Analyze a GitHub pull request:
 
 ```bash
-python -m shipguard analyze --repo ./sample-app --max-diff-chars 30000
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER
 ```
 
-If the repository path does not exist or is not a git repository, ShipGuard
-prints a clear error and exits with code `2`.
+## Example use cases
 
-## Synthetic Demo Repository
+- Review an API change for removed fields, changed enum values, or client
+  compatibility risk.
+- Review a migration for backfill, locking, production-data, and rollback
+  concerns.
+- Check whether new environment variables are represented in deployment
+  configuration.
+- Surface dependency, authentication, or permission changes that deserve
+  focused review.
+- Identify when a risky implementation change lacks targeted tests or rollout
+  evidence.
+- Generate a release review artifact for a maintainer to discuss before merge.
 
-Create a small fake Claims API repository with intentional release risks:
+## Current status
+
+ShipGuard is an early-stage CLI project and is under active development.
+
+- The package metadata currently identifies version `0.1.0`.
+- The CLI supports local diffs and GitHub pull requests.
+- Model-backed analysis requires a user-configured OpenAI-compatible endpoint.
+- Project memory and generated reports are stored locally under `.shipguard/`.
+- Unit tests cover core context, environment loading, report generation, and PR
+  commenting behavior.
+- There is not yet a stable configuration or output compatibility guarantee.
+- Findings have not been validated as a substitute for production release
+  controls and should be reviewed by a human.
+
+Issues, design feedback, documentation improvements, tests, and focused fixes
+are welcome.
+
+## Roadmap
+
+Near-term work focuses on analysis reliability, maintainer workflows,
+integrations, evidence quality, and clearer examples. See [ROADMAP.md](ROADMAP.md)
+for the directional roadmap. Roadmap items are not release commitments.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, development checks,
+issue guidance, pull request expectations, and contribution ideas.
+
+By participating, you agree to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Security
+
+Do not put API keys, private repository content, exploit details, or other
+sensitive data in a public issue. See [SECURITY.md](SECURITY.md) for reporting
+guidance and the current private-reporting limitation.
+
+## CLI reference
+
+ShipGuard exposes three commands:
+
+- `analyze`: analyze a local git repository diff;
+- `analyze-pr`: analyze a GitHub pull request URL; and
+- `clear-comments`: remove only ShipGuard-generated comments from a PR.
+
+Inspect command-specific options with:
 
 ```bash
-python scripts/create_demo_repo.py
+python -m shipguard analyze --help
+python -m shipguard analyze-pr --help
+python -m shipguard clear-comments --help
 ```
 
-This creates `sample-app/` as a nested git repository, commits a safe baseline,
-then leaves risky changes uncommitted so ShipGuard can analyze a real diff.
-
-The synthetic demo includes fake FastAPI-style code, fake Alembic-style
-migrations, tests, `docker-compose.yml`, and `.env.example`. It intentionally
-contains risks such as enum changes, required field changes, unsafe `NOT NULL`
-migration behavior, missing env config, missing regression tests, and rollback
-migration problems. It does not contain real company or client code.
-
-Analyze it:
+### Local git diff analysis
 
 ```bash
 python -m shipguard analyze --repo ./sample-app
 ```
 
-## GitHub PR Analysis
+ShipGuard validates the path and reads the current branch, latest commit hash
+when available, changed file names and extensions, `git diff --stat`, the diff
+up to the configured limit, and whether the repository has uncommitted changes.
 
-Run:
+Set the local diff context limit:
 
 ```bash
-python -m shipguard analyze-pr --pr-url https://github.com/OWNER/REPO/pull/NUMBER
+python -m shipguard analyze \
+  --repo ./sample-app \
+  --max-diff-chars 30000
 ```
 
-ShipGuard parses the PR URL, fetches PR metadata, fetches changed files, packs
-the PR diff, calls the configured LLM, prints the terminal report, and writes
-Release Passport artifacts.
+An invalid or non-git repository path produces an error and exit code `2`.
 
-Fetched PR metadata includes:
+### GitHub PR analysis
 
-- title
-- body
-- state
-- base branch
-- head branch
-- base SHA
-- head SHA
-- changed files count
-- additions
-- deletions
-- changed file names
-- PR diff
+```bash
+python -m shipguard analyze-pr \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER
+```
 
-Default PR diff context limit:
+ShipGuard fetches PR metadata and changed files, packs the diff, calls the
+configured model, prints a terminal report, and writes Release Passport
+artifacts.
+
+Set the PR diff context limit:
 
 ```bash
 python -m shipguard analyze-pr \
@@ -179,37 +238,30 @@ python -m shipguard analyze-pr \
   --max-diff-chars 120000
 ```
 
-## Smart PR Diff Packing
+Fetched PR context includes the title, body, state, branches, base and head
+SHAs, change counts, changed file names, and available patches.
 
-PR analysis does not blindly take the first N characters of the diff. ShipGuard
-splits the PR diff into per-file sections and prioritizes risky files first.
+## Risk-aware diff packing
 
-Highest priority:
+ShipGuard splits PR changes into per-file sections instead of taking only the
+first characters of a large diff.
 
-- migrations, Alembic, versioned migration files
-- API routes, schemas, serializers, controllers, Pydantic models
-- config, settings, env, Docker, deployment files
-- auth, security, permission, token files
-- dependency files such as `pyproject.toml`, `requirements.txt`,
-  `package.json`, and lock files
+Highest-priority categories include:
 
-Medium priority:
+- migrations and versioned database changes;
+- API routes, schemas, serializers, controllers, and models;
+- configuration, environment, container, and deployment files;
+- authentication, authorization, permission, and token code; and
+- dependency manifests and lock files.
 
-- service and business logic files
-- database model files
-- tests
+Business logic, database models, and tests receive medium priority. Documentation
+and formatting-oriented files receive lower priority.
 
-Low priority:
+Large file patches may include only their beginning and end. When the context
+budget omits files, ShipGuard tells the model that the changed-file list is
+complete but the diff evidence is partial.
 
-- README, docs, and formatting-oriented files
-
-If a file diff is too large, ShipGuard includes the beginning and end of that
-file diff with a truncation marker. If files are omitted because of the context
-budget, the prompt tells the LLM that the changed file list is complete and
-that omitted risky files should be treated as missing evidence requiring manual
-review.
-
-## Project Memory
+## Project memory
 
 Project memory is enabled by default for `analyze-pr`.
 
@@ -220,26 +272,20 @@ python -m shipguard analyze-pr \
   --show-memory-summary
 ```
 
-Memory is built from the PR base SHA, not the PR head. This is intentional:
-project memory represents the existing base-branch project context, while the
-PR diff represents proposed changes. Files newly added in the PR appear in the
-changed-file list and PR diff, not in base-branch memory until after they are
-merged and memory is rebuilt for a later PR.
+Memory is built from the PR base SHA. This keeps existing project context
+separate from proposed changes in the PR.
 
-Memory behavior:
+The memory builder:
 
-- fetches repository metadata
-- fetches the full repository file tree from the PR base SHA
-- records an inventory entry for every discovered file
-- classifies every file with generic path, filename, extension, and content
-  signals
-- fetches content only for eligible text, code, and config files
-- skips binary, generated, vendor, cache, and oversized files safely
-- extracts deterministic project signals
-- summarizes compact file contexts with the LLM in batches when available
-- falls back to deterministic memory if LLM project summarization fails
+- inventories files from the base commit;
+- classifies files using path, filename, extension, and content signals;
+- skips binary, generated, vendor, cache, and oversized files;
+- extracts deterministic signals such as API routes, database tables,
+  migrations, imports, symbols, environment variables, and test frameworks;
+- optionally summarizes compact file context with the configured model; and
+- falls back to deterministic context if model summarization fails.
 
-Memory storage:
+Memory is stored under:
 
 ```text
 .shipguard/memory/<owner>_<repo>/
@@ -250,24 +296,19 @@ Memory storage:
   release_history.jsonl
 ```
 
-`repo_inventory.json` includes every discovered file. `files_index.json`
-includes only fetched and analyzed text/code/config files. `release_history.jsonl`
-is appended after successful PR analysis.
+Relevant options:
 
-Useful memory flags:
+- `--use-memory` / `--no-memory`: enable or disable project memory;
+- `--rebuild-memory`: rebuild from the PR base SHA;
+- `--memory-dir .shipguard/memory`: select a memory directory; and
+- `--show-memory-summary`: print build counts, warnings, and the memory path.
 
-- `--use-memory / --no-memory`: enable or disable project memory
-- `--rebuild-memory`: rebuild memory from the PR base SHA
-- `--memory-dir .shipguard/memory`: change the local memory directory
-- `--show-memory-summary`: print discovered/fetched/skipped counts, tree
-  truncation status, summary source, known category counts, and memory path
+If GitHub returns a truncated recursive tree, ShipGuard records the warning and
+attempts non-recursive subtree traversal.
 
-If GitHub reports a truncated recursive tree response, ShipGuard records the
-warning and falls back to non-recursive subtree traversal when possible.
+## Release Passport reports
 
-## Release Passport Reports
-
-PR analysis always generates:
+Successful PR analysis writes:
 
 ```text
 .shipguard/reports/<owner>_<repo>_pr_<number>/
@@ -275,7 +316,7 @@ PR analysis always generates:
   analysis.json
 ```
 
-Generate the self-contained HTML dashboard with `--html`:
+Generate the optional self-contained HTML report:
 
 ```bash
 python -m shipguard analyze-pr \
@@ -285,69 +326,34 @@ python -m shipguard analyze-pr \
   --html
 ```
 
-This also creates:
+This also writes:
 
 ```text
 .shipguard/reports/<owner>_<repo>_pr_<number>/
   release_passport.html
 ```
 
-The Markdown report includes:
+Reports can include:
 
-- ShipGuard Release Passport
-- repository and PR details
-- generated timestamp
-- release readiness score
-- decision
-- risk level
-- executive summary
-- project memory summary
-- changed files
-- what may break
-- what CI may miss
-- missing evidence
-- safer rollout plan
-- rollback plan
-- score breakdown if available
-- appendix with memory and diff context summary
+- repository and PR metadata;
+- readiness score, decision, and risk level;
+- an executive summary;
+- project memory and changed-file context;
+- likely breakages and CI blind spots;
+- missing evidence;
+- safer rollout and rollback considerations; and
+- an optional score breakdown.
 
-The HTML report is self-contained: no external CDN, no React, no JavaScript, and
-inline CSS only. It opens directly in a browser and includes a modern dashboard
-layout with:
+The HTML report is self-contained with inline CSS and no external CDN or
+JavaScript dependency. `analysis.json` contains the structured report and
+artifact paths. Generated report directories are ignored by git.
 
-- large hero section
-- tagline
-- score card
-- decision badge
-- risk badge
-- summary metrics
-- risk cards
-- CI blind spot checklist
-- project memory card
-- changed files table
-- safer rollout plan
-- rollback plan
-- generated timestamp footer
+## GitHub PR comments
 
-`analysis.json` stores the structured report object, including:
+Posting and clearing comments requires `SHIPGUARD_GITHUB_TOKEN`. ShipGuard does
+not print the token.
 
-- PR metadata
-- `ReleaseRiskReport`
-- project memory summary if available
-- changed files with categories and diff evidence
-- missing evidence
-- safer rollout plan
-- rollback plan
-- generated artifact paths
-
-`.shipguard/reports/` is ignored by git.
-
-## GitHub PR Comments
-
-ShipGuard can post easy-language review comments to GitHub. Posting and
-clearing comments requires `SHIPGUARD_GITHUB_TOKEN`. The token is never printed.
-
-Dry-run preview:
+Preview comments without posting:
 
 ```bash
 python -m shipguard analyze-pr \
@@ -357,13 +363,13 @@ python -m shipguard analyze-pr \
   --dry-run-comments
 ```
 
-Dry run does not post to GitHub. It writes:
+The preview is written to:
 
 ```text
 .shipguard/reports/<owner>_<repo>_pr_<number>/pr_comment_preview.md
 ```
 
-Post or update a top-level summary comment:
+Post or update a top-level summary:
 
 ```bash
 python -m shipguard analyze-pr \
@@ -373,25 +379,10 @@ python -m shipguard analyze-pr \
   --post-comment
 ```
 
-The summary comment contains the marker:
+ShipGuard marks its summary with `<!-- shipguard:summary -->`. If a marked
+summary already exists, ShipGuard updates it instead of creating another one.
 
-```html
-<!-- shipguard:summary -->
-```
-
-If a previous ShipGuard summary comment already exists, ShipGuard updates it
-instead of creating a duplicate. The comment includes:
-
-- release readiness score
-- decision
-- risk level
-- 3-5 key risks
-- what CI may miss
-- suggested next actions
-- generated artifact paths
-- note that the full HTML report is available locally or as a CI artifact path
-
-Post inline review comments:
+Post conservative inline comments:
 
 ```bash
 python -m shipguard analyze-pr \
@@ -403,38 +394,12 @@ python -m shipguard analyze-pr \
   --max-inline-comments 5
 ```
 
-Inline comments use the GitHub pull request review API with event `COMMENT` by
-default. They include the marker:
+Inline comments use `<!-- shipguard:inline -->` and are limited to changed lines
+where ShipGuard can map a finding to diff evidence. Examples include a required
+column without backfill evidence, a risky rollback, an API contract change, or
+a new environment variable without configuration evidence.
 
-```html
-<!-- shipguard:inline -->
-```
-
-Inline comments are intentionally conservative:
-
-- at most `--max-inline-comments`
-- only high-confidence issues
-- only changed lines with clear diff evidence
-- no comment on every file
-- no duplicate comment per file in one run
-- short, human, actionable language
-
-ShipGuard first looks for deterministic line-level risks, then falls back to
-anchoring top-level `what_may_break` risks to likely changed lines when it can
-find a reasonable match. Each inline comment includes a suggested change.
-
-Examples of inline risks ShipGuard looks for:
-
-- migration adds a required `NOT NULL` column without default/backfill evidence
-- migration rollback appears missing or destructive
-- public API route/request/response/enum contract changes
-- code uses a new env var without deployment/config evidence in the PR
-
-If ShipGuard detects an issue but cannot map it safely to a changed line, it
-skips the inline comment and includes the note in the top-level summary comment
-or preview.
-
-Future blocking mode:
+The default GitHub review event is non-blocking `COMMENT`. To request changes:
 
 ```bash
 python -m shipguard analyze-pr \
@@ -443,73 +408,36 @@ python -m shipguard analyze-pr \
   --request-changes
 ```
 
-`--request-changes` posts inline review comments with GitHub review event
-`REQUEST_CHANGES`. The default is non-blocking `COMMENT`.
-
-Clear old ShipGuard comments:
+Clear marked ShipGuard comments:
 
 ```bash
-python -m shipguard clear-comments --pr-url https://github.com/OWNER/REPO/pull/NUMBER
+python -m shipguard clear-comments \
+  --pr-url https://github.com/OWNER/REPO/pull/NUMBER
 ```
 
-This deletes only comments containing ShipGuard markers:
+The clear command deletes only comments containing ShipGuard's summary or
+inline markers. It does not delete unmarked comments.
 
-- `<!-- shipguard:summary -->`
-- `<!-- shipguard:inline -->`
+## Synthetic demo
 
-It never deletes comments that do not contain a ShipGuard marker. If deletion
-of a marked comment fails, ShipGuard prints a warning and continues.
-
-## Terminal Output
-
-The CLI still prints the text report:
-
-- Release Readiness Score
-- Decision
-- Risk Level
-- What may break
-- What CI may miss
-
-For PR analysis it also prints generated artifact paths:
-
-```text
-Generated artifacts:
-- .shipguard/reports/OWNER_REPO_pr_NUMBER/release_passport.md
-- .shipguard/reports/OWNER_REPO_pr_NUMBER/release_passport.html
-- .shipguard/reports/OWNER_REPO_pr_NUMBER/analysis.json
-```
-
-The HTML path is printed only when `--html` is used.
-
-When comment preview is requested, ShipGuard also prints:
-
-```text
-PR comment preview:
-- .shipguard/reports/OWNER_REPO_pr_NUMBER/pr_comment_preview.md
-```
-
-When comments are posted, ShipGuard prints whether the summary comment was
-created or updated and how many inline comments were posted.
-
-## Example Acceptance Command
+Create a small synthetic Claims API repository with intentional release risks:
 
 ```bash
-python -m shipguard analyze-pr \
-  --pr-url https://github.com/kapilsharma432001/ShipGuard/pull/6 \
-  --use-memory \
-  --show-memory-summary \
-  --html
+python scripts/create_demo_repo.py
 ```
 
-Expected result:
+The script creates `sample-app/` as a nested git repository, commits a baseline,
+and leaves risky changes uncommitted. The demo contains synthetic API,
+migration, test, container, and environment configuration examples. It does not
+contain real company or client code.
 
-- terminal release risk summary is printed
-- memory summary is printed
-- Markdown report is created
-- HTML report is created
-- JSON analysis artifact is created
+Analyze it with:
 
-## Repository Structure
+```bash
+python -m shipguard analyze --repo ./sample-app
+```
+
+## Repository structure
 
 ```text
 shipguard/
@@ -519,12 +447,12 @@ shipguard/
   git_analyzer.py      # local git diff collection
   github_client.py     # GitHub PR and repository API client
   pr_url_parser.py     # GitHub PR URL parser
-  llm_client.py        # OpenAI-compatible LLM client
+  llm_client.py        # OpenAI-compatible model client
   models.py            # Pydantic models and enums
-  context_builder.py   # project memory/context engine
+  context_builder.py   # project memory and context engine
   project_memory.py    # local JSON memory storage
   report_generator.py  # Release Passport artifacts
-  pr_commenter.py      # PR summary/inline comment generation and cleanup
+  pr_commenter.py      # PR summary and inline comment handling
 scripts/
   create_demo_repo.py  # synthetic sample-app generator
 tests/
@@ -534,21 +462,21 @@ tests/
   test_pr_commenter.py
 ```
 
-## Development Checks
+## Development checks
 
-Run compile checks:
-
-```bash
-python -m compileall shipguard scripts tests
-```
-
-Run tests:
+Run the unit tests:
 
 ```bash
 python -m unittest discover -s tests
 ```
 
-Check command help:
+Run a compile check:
+
+```bash
+python -m compileall shipguard scripts tests
+```
+
+Check the CLI entry points:
 
 ```bash
 python -m shipguard --help
@@ -557,81 +485,40 @@ python -m shipguard analyze-pr --help
 python -m shipguard clear-comments --help
 ```
 
+No project-wide linting or formatting command is currently configured.
+
 ## Troubleshooting
 
-Missing LLM configuration:
+**Missing model configuration**
 
-```text
-Configuration error: missing required environment variable(s)...
-```
+Set `SHIPGUARD_LLM_BASE_URL`, `SHIPGUARD_LLM_API_KEY`, and
+`SHIPGUARD_LLM_MODEL`.
 
-Set:
+**Private repository or GitHub API rate limit**
 
-- `SHIPGUARD_LLM_BASE_URL`
-- `SHIPGUARD_LLM_API_KEY`
-- `SHIPGUARD_LLM_MODEL`
+Set `SHIPGUARD_GITHUB_TOKEN` with access to the repository. Posting and clearing
+comments also requires a token with the relevant repository permissions.
 
-Private repository or GitHub rate limit:
+**Invalid PR URL**
 
-```text
-GitHub API request failed with HTTP 401/403/404...
-```
-
-Set `SHIPGUARD_GITHUB_TOKEN` with access to the repository.
-
-Posting or clearing comments without a token:
-
-```text
-GitHub error: SHIPGUARD_GITHUB_TOKEN is required to post or clear PR comments.
-```
-
-Set `SHIPGUARD_GITHUB_TOKEN` with permission to comment on the PR.
-
-Invalid PR URL:
-
-```text
-Invalid PR URL: ...
-```
-
-Use a standard GitHub PR URL:
+Use the standard form:
 
 ```text
 https://github.com/OWNER/REPO/pull/NUMBER
 ```
 
-Missing local repo path:
+**Project memory does not include a newly added file**
 
-```text
-Repository path does not exist: ...
-```
+Memory represents the PR base SHA. New files remain visible in the PR changed
+file list and diff, but they do not enter base-branch memory until a later
+review after merge and rebuild.
 
-The `analyze` command exits with code `2` for invalid local repo input.
+**Expected report files are missing**
 
-Unexpected missing files in memory:
+`release_passport.md` and `analysis.json` are written after successful
+model-backed PR analysis. `release_passport.html` is written only with
+`--html`.
 
-Project memory is built from the PR base SHA. Files added by the PR will be in
-the PR changed-file list and diff, but not in `files_index.json` until they
-exist on the base branch and memory is rebuilt.
+## License
 
-Report files not appearing:
-
-- `release_passport.md` and `analysis.json` are generated for PR analysis after
-  a successful LLM analysis.
-- `release_passport.html` is generated only when `--html` is passed.
-- Report files are written under `.shipguard/reports/`.
-
-Comment preview not appearing:
-
-- `pr_comment_preview.md` is generated only when `--dry-run-comments`,
-  `--post-comment`, or `--post-inline-comments` is used.
-- The preview is written under the same PR report directory as the Release
-  Passport artifacts.
-
-## Security Notes
-
-- Do not commit `.env` or API keys.
-- ShipGuard does not print GitHub or LLM tokens.
-- Local memory stores project metadata, extracted env var names, route names,
-  table names, release risks, and release history. Store `.shipguard/memory/`
-  and `.shipguard/reports/` according to your internal data handling policy.
-- Comment cleanup only deletes comments with ShipGuard markers.
+ShipGuard is available under the [MIT License](LICENSE).
