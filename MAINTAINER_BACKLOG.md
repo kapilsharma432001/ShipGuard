@@ -68,6 +68,10 @@ unmilestoned unless they block a planned release.
 **Suggested labels:** `enhancement`, `github-actions`, `maintainer-workflow`,
 `design-needed`
 
+**Design:** See the
+[proposed GitHub Action design](docs/github-action-design.md), created for
+GitHub issue #14.
+
 **Problem:** ShipGuard has repository CI, but there is no documented design for
 running ShipGuard as an advisory review step in another repository.
 

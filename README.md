@@ -167,7 +167,9 @@ are welcome.
 
 Near-term work focuses on analysis reliability, maintainer workflows,
 integrations, evidence quality, and clearer examples. See [ROADMAP.md](ROADMAP.md)
-for the directional roadmap. Roadmap items are not release commitments.
+for the directional roadmap and the
+[proposed GitHub Action design](docs/github-action-design.md) for a future
+advisory integration. Roadmap items are not release commitments.
 
 ## Contributing
 
