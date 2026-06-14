@@ -13,6 +13,8 @@ stable release process is established.
 - Standard open-source governance and contribution documentation.
 - GitHub issue and pull request templates.
 - A maintainer-oriented roadmap.
+- GitHub Actions validation for tests, compilation, and CLI help on supported
+  Python versions.
 
 ### Changed
 

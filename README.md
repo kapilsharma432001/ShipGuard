@@ -485,6 +485,9 @@ python -m shipguard analyze-pr --help
 python -m shipguard clear-comments --help
 ```
 
+GitHub Actions runs these checks on pull requests and pushes to `main` using
+Python 3.11 and 3.12.
+
 No project-wide linting or formatting command is currently configured.
 
 ## Troubleshooting
