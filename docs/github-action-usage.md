@@ -34,6 +34,20 @@ API. This avoids executing a contributor-modified local action with model
 secrets. The workflow uses read-only repository and pull request permissions,
 does not post comments, and does not use `pull_request_target`.
 
+## Verifying the dogfooding workflow
+
+After configuring all three `SHIPGUARD_LLM_*` repository secrets, maintainers
+can open a small documentation-only pull request to verify the integration.
+Check the workflow run to confirm that:
+
+- the ShipGuard step runs instead of taking the missing-secrets skip path;
+- a Release Passport artifact is uploaded;
+- no pull request comments are posted; and
+- the result remains advisory rather than blocking the pull request.
+
+Record only the observed workflow result. Do not add documentation claiming the
+verification passed before the GitHub Actions run completes successfully.
+
 ## What works today
 
 The initial wrapper:

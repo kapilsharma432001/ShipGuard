@@ -25,6 +25,8 @@ stable release process is established.
   artifact privacy, and troubleshooting.
 - A read-only, secret-gated dogfooding workflow for advisory pull request
   Release Passport artifacts.
+- Documentation for verifying the dogfooding workflow with a small pull
+  request.
 
 ### Changed
 
