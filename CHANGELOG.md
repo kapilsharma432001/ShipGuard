@@ -30,6 +30,10 @@ stable release process is established.
 - Proof and sanitized examples covering the PyPI package, GitHub Action, and
   successful dogfooding artifact generation.
 
+### Testing
+
+- Added dedicated unit coverage for GitHub pull request URL parsing.
+
 ### Changed
 
 - Reframed the README around pull request release-risk review, current
